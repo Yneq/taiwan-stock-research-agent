@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: taiwan-stock-research-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: STOCKTRACKER_BASE_URL
+        sync: false
+      - key: STOCKTRACKER_API_KEY
+        sync: false
+      - key: MAX_AGENT_STEPS
+        value: "3"
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "15"

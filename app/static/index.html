@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="以即時行情與可驗證新聞來源為基礎的台股研究助理。"
+    />
+    <title>FinScope TW — 台股研究助理</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="FinScope TW 首頁">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>FinScope <b>TW</b></span>
+      </a>
+      <div class="system-status" role="status">
+        <span class="status-dot"></span>
+        <span>Research agent online</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow"><span>AI-GROUNDED RESEARCH</span> · TAIWAN EQUITIES</p>
+        <h1 id="hero-title">把市場雜訊，整理成<br /><em>可以查證的脈絡。</em></h1>
+        <p class="hero-copy">
+          即時股價來自 TaiwanStockTracker，事件脈絡由 AI 搜尋公開來源。
+          每個數字與結論都留下查詢軌跡。
+        </p>
+
+        <form id="research-form" class="research-form">
+          <label for="question" class="sr-only">輸入台股研究問題</label>
+          <textarea
+            id="question"
+            name="question"
+            rows="2"
+            minlength="3"
+            maxlength="500"
+            placeholder="例如：台積電今天股價如何？近期有哪些重要事件？"
+            required
+          ></textarea>
+          <div class="form-footer">
+            <span id="character-count">0 / 500</span>
+            <button id="submit-button" type="submit">
+              <span>開始研究</span><span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </form>
+
+        <div class="suggestions" aria-label="範例問題">
+          <button type="button" data-question="台積電 2330 今天股價如何？相較昨收漲跌多少？">
+            2330 今日行情
+          </button>
+          <button type="button" data-question="台積電最近一週有哪些可能影響股價的重要新聞？">
+            台積電近期事件
+          </button>
+          <button type="button" data-question="聯發科 2454 最近的月營收趨勢與重要消息是什麼？">
+            2454 營收趨勢
+          </button>
+        </div>
+      </section>
+
+      <section id="loading-panel" class="loading-panel" hidden aria-live="polite">
+        <div class="loader-visual" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div>
+          <p class="eyebrow">AGENT WORKING</p>
+          <h2 id="loading-title">正在判斷需要查詢哪些資料…</h2>
+          <p>服務首次喚醒可能需要約一分鐘，請保留這個頁面。</p>
+        </div>
+      </section>
+
+      <section id="error-panel" class="error-panel" hidden role="alert">
+        <p class="eyebrow">REQUEST INTERRUPTED</p>
+        <h2>這次研究沒有完成</h2>
+        <p id="error-message"></p>
+        <button id="retry-button" type="button">重新嘗試</button>
+      </section>
+
+      <section id="results" class="results" hidden aria-live="polite">
+        <div class="results-heading">
+          <div>
+            <p class="eyebrow">RESEARCH BRIEF</p>
+            <h2>研究摘要</h2>
+          </div>
+          <span id="model-badge" class="model-badge"></span>
+        </div>
+
+        <div class="results-grid">
+          <article class="answer-card">
+            <div id="answer-content" class="answer-content"></div>
+            <p id="disclaimer" class="disclaimer"></p>
+          </article>
+
+          <aside class="evidence-column">
+            <section class="evidence-card">
+              <div class="card-title-row">
+                <h3>研究軌跡</h3>
+                <span id="tool-count">0 tools</span>
+              </div>
+              <ol id="tool-traces" class="tool-traces"></ol>
+            </section>
+
+            <section class="evidence-card">
+              <div class="card-title-row">
+                <h3>引用來源</h3>
+                <span id="citation-count">0 sources</span>
+              </div>
+              <div id="citations" class="citations"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Research assistant, not a trading system.</p>
+      <p>Java · Python · Gemini · TWSE · FinMind</p>
+    </footer>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
