@@ -4,12 +4,15 @@ A grounded Taiwan-stock research assistant that decides when to retrieve live
 market data, revenue history, and current web sources before answering. It is a
 research tool—not a price predictor or trading-signal generator.
 
+The companion Java MCP Server lives in
+[Yneq/StockTracker](https://github.com/Yneq/StockTracker).
+
 ## What it demonstrates
 
 - Agentic tool selection with a bounded multi-step loop
 - Gemini Interactions API function calling
 - Google Search grounding with structured citations
-- Python/FastAPI calling a separate Java/Spring Boot data service
+- Python MCP Client calling a separate Java/Spring Boot MCP Server
 - Observable tool traces, failure handling, rate limiting, tests, and eval cases
 - Cost-aware deployment where the hosted model stays outside the app container
 
@@ -22,15 +25,15 @@ Browser
 FastAPI research service ───────► Gemini Interactions API
    │                                └─ Google Search grounding
    │
-   └── X-Agent-Key ─────────────► TaiwanStockTracker (Spring Boot)
+   └── MCP + X-Agent-Key ───────► TaiwanStockTracker (Spring Boot)
                                       ├─ TWSE MIS
                                       ├─ FinMind
                                       └─ Neon PostgreSQL
 ```
 
 Gemini receives function declarations but never receives database credentials.
-The Python service executes approved read-only tools and sends only their JSON
-results back to the model.
+The Python service executes approved read-only tools through the Model Context
+Protocol and sends only their JSON results back to the model.
 
 ## Agent workflow
 
@@ -39,7 +42,7 @@ results back to the model.
    - `get_stock_snapshot`
    - `get_revenue_history`
    - managed `google_search`
-3. FastAPI executes custom tools against the Java service.
+3. FastAPI acts as an MCP Client and executes custom tools on the Java MCP Server.
 4. Tool results return to the same Gemini interaction.
 5. The model produces a Traditional Chinese brief with explicit limitations.
 6. The UI displays the answer, tool trace, citations, and disclaimer.
@@ -54,7 +57,7 @@ data.
 app/
 ├── agent/          # bounded orchestration loop and research policy
 ├── api/            # FastAPI endpoints
-├── clients/        # Gemini and StockTracker provider adapters
+├── clients/        # Gemini gateway and StockTracker MCP Client
 ├── middleware/     # portfolio-demo request limiter
 ├── schemas/        # validated API contracts
 ├── static/         # responsive research interface
@@ -66,7 +69,7 @@ tests/              # orchestration, configuration, and HTTP adapter tests
 ## Requirements
 
 - Python 3.12
-- A running TaiwanStockTracker service with the Agent Data API
+- A running TaiwanStockTracker service with its `/mcp` endpoint enabled
 - Gemini API key with access to a Gemini 3 model
 
 ## Local setup
@@ -153,9 +156,10 @@ review item for the MVP.
 The included `Dockerfile` and `render.yaml` deploy one lightweight FastAPI web
 service to Render. Configure all secrets in Render—not in GitHub.
 
-The Java service is deployed separately. Its public URL becomes
-`STOCKTRACKER_BASE_URL`; the shared random service key is configured as
-`AGENT_API_KEY` on Java and `STOCKTRACKER_API_KEY` on Python.
+The Java MCP Server is deployed separately. Its public URL becomes
+`STOCKTRACKER_BASE_URL`; the Python service connects to its `/mcp` endpoint.
+The shared random service key is configured as `AGENT_API_KEY` on Java and
+`STOCKTRACKER_API_KEY` on Python.
 
 The model runs on Google's infrastructure, so no model weights or GPU runtime
 are stored in the Render container.
