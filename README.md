@@ -90,6 +90,9 @@ MAX_AGENT_STEPS=3
 REQUEST_TIMEOUT_SECONDS=10
 ```
 
+The application automatically loads a local `.env` file through
+`python-dotenv`. The file is excluded from Git.
+
 `STOCKTRACKER_API_KEY` must match `AGENT_API_KEY` on the Java service.
 
 Run the app:
