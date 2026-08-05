@@ -46,11 +46,43 @@ REVENUE_HISTORY_TOOL: dict[str, Any] = {
     },
 }
 
+NEWS_SEARCH_TOOL: dict[str, Any] = {
+    "type": "function",
+    "name": "search_news",
+    "description": (
+        "搜尋最近的公開新聞，回傳標題、媒體、發布時間與來源網址。"
+        "使用者詢問近期事件、新聞或股價變動背景時使用。"
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "適合新聞搜尋的繁體中文關鍵字。",
+                "minLength": 2,
+                "maxLength": 120,
+            },
+            "days": {
+                "type": "integer",
+                "description": "搜尋最近幾天，介於 1 到 30，預設 7。",
+                "minimum": 1,
+                "maximum": 30,
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "最多回傳幾則新聞，介於 1 到 10，預設 5。",
+                "minimum": 1,
+                "maximum": 10,
+            },
+        },
+        "required": ["query"],
+    },
+}
+
 
 def build_tools() -> list[dict[str, Any]]:
-    # Gemini 3 Interactions can combine Google Search with custom functions.
     return [
-        {"type": "google_search"},
+        NEWS_SEARCH_TOOL,
         STOCK_SNAPSHOT_TOOL,
         REVENUE_HISTORY_TOOL,
     ]

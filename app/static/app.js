@@ -143,13 +143,14 @@ function humanToolName(name) {
     get_stock_snapshot: "即時行情核對",
     get_revenue_history: "月營收查詢",
     google_search: "公開新聞搜尋",
+    search_news: "即時新聞搜尋",
   }[name] || name;
 }
 
 function traceDetail(item) {
   if (item.error) return item.error;
-  if (item.tool === "google_search") {
-    return (item.arguments.queries || []).join(" · ");
+  if (item.tool === "google_search" || item.tool === "search_news") {
+    return item.arguments.query || (item.arguments.queries || []).join(" · ");
   }
   const code = item.arguments.stock_code || "";
   const duration = item.duration_ms ? ` · ${item.duration_ms} ms` : "";

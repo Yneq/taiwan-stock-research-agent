@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from app.clients.gemini import GeminiGateway, SourceCitation
 from app.schemas.research import Citation, ToolTrace
 from app.tools.definitions import build_tools
-from app.tools.executor import ToolExecutor
+from app.tools.executor import ToolExecution, ToolExecutor
 
 
 SYSTEM_PROMPT = """
@@ -15,7 +15,7 @@ SYSTEM_PROMPT = """
 規則：
 1. 回答即時價格、開盤、昨收或漲跌幅前，必須呼叫 get_stock_snapshot。
 2. 只有使用者詢問營收或基本面趨勢時，才呼叫 get_revenue_history。
-3. 解釋近期事件時使用 Google Search，優先採用公司公告、交易所與可信新聞來源。
+3. 解釋近期事件時呼叫 search_news，優先採用公司公告、交易所與可信新聞來源。
 4. 數字必須忠實使用工具結果，禁止自行推測或修改。
 5. 區分已確認事實與可能影響因素，不把時間相關性寫成直接因果。
 6. 若資料不足或工具失敗，清楚說明限制，不得編造答案。
@@ -95,6 +95,7 @@ class ResearchOrchestrator:
                 )
                 for item in executions
             )
+            citations.extend(self._citations_from_tool_results(executions))
             turn = await self._gateway.continue_with_results(
                 previous_interaction_id=turn.id,
                 results=[item.as_function_result() for item in executions],
@@ -110,6 +111,26 @@ class ResearchOrchestrator:
                 citations=self._to_api_citations(citations),
             )
         raise AgentIncompleteError("Agent 已達工具呼叫上限，無法安全完成回答")
+
+    def _citations_from_tool_results(
+        self, executions: list[ToolExecution]
+    ) -> list[SourceCitation]:
+        citations: list[SourceCitation] = []
+        for execution in executions:
+            if execution.name != "search_news" or execution.status != "success":
+                continue
+            for article in execution.result.get("articles", []):
+                url = article.get("url", "")
+                if not url:
+                    continue
+                citations.append(
+                    SourceCitation(
+                        title=article.get("title") or article.get("source") or "新聞來源",
+                        url=url,
+                        cited_text=article.get("title") or None,
+                    )
+                )
+        return citations
 
     def _to_api_citations(self, citations: list[SourceCitation]) -> list[Citation]:
         unique: dict[str, Citation] = {}

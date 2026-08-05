@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.agent.orchestrator import ResearchOrchestrator
 from app.api.research import router as research_router
 from app.clients.gemini import GeminiInteractionsGateway
+from app.clients.news import NewsSearchClient
 from app.clients.stocktracker import StockTrackerClient
 from app.config import get_settings
 from app.middleware.rate_limit import ResearchRateLimitMiddleware
@@ -31,13 +32,15 @@ async def lifespan(app: FastAPI):
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
     )
+    news = NewsSearchClient(timeout_seconds=settings.request_timeout_seconds)
     app.state.orchestrator = ResearchOrchestrator(
         gateway=gateway,
-        executor=ToolExecutor(stocktracker),
+        executor=ToolExecutor(stocktracker, news),
         max_steps=settings.max_agent_steps,
     )
     yield
     await stocktracker.close()
+    await news.close()
 
 
 app = FastAPI(

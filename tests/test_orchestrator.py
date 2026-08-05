@@ -22,6 +22,7 @@ class FakeGateway:
         assert "不提供買賣建議" in system_instruction
         assert user_input
         assert any(tool.get("name") == "get_stock_snapshot" for tool in tools)
+        assert any(tool.get("name") == "search_news" for tool in tools)
         return self.turns.popleft()
 
     async def continue_with_results(
@@ -38,11 +39,29 @@ class FakeGateway:
 
 class FakeExecutor:
     async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
+        if name == "search_news":
+            result = {
+                "query": arguments["query"],
+                "articles": [
+                    {
+                        "title": "台積電近期消息",
+                        "url": "https://example.com/news",
+                        "source": "範例新聞",
+                        "publishedAt": "2026-08-05T08:00:00+00:00",
+                    }
+                ],
+            }
+        else:
+            result = {
+                "stockCode": "2330",
+                "currentPrice": 1120,
+                "changePercent": 1.36,
+            }
         return ToolExecution(
             call_id=call_id,
             name=name,
             arguments=arguments,
-            result={"stockCode": "2330", "currentPrice": 1120, "changePercent": 1.36},
+            result=result,
             status="success",
             duration_ms=12,
         )
@@ -71,13 +90,20 @@ async def test_executes_tool_and_returns_grounded_answer() -> None:
         [
             turn(
                 "turn-1",
-                calls=[FunctionCall("call-1", "get_stock_snapshot", {"stock_code": "2330"})],
+                calls=[
+                    FunctionCall(
+                        "call-1", "get_stock_snapshot", {"stock_code": "2330"}
+                    ),
+                    FunctionCall(
+                        "call-2",
+                        "search_news",
+                        {"query": "台積電 近期新聞", "days": 7},
+                    ),
+                ],
             ),
             turn(
                 "turn-2",
                 text="摘要\n台積電目前成交價為 1120 元。",
-                citations=[SourceCitation("公司公告", "https://example.com/news", "台積電")],
-                queries=["台積電 近期新聞"],
             ),
         ]
     )
@@ -88,7 +114,7 @@ async def test_executes_tool_and_returns_grounded_answer() -> None:
     assert "1120" in outcome.answer
     assert [trace.tool for trace in outcome.traces] == [
         "get_stock_snapshot",
-        "google_search",
+        "search_news",
     ]
     assert outcome.citations[0].url == "https://example.com/news"
     assert gateway.continuations[0][0]["type"] == "function_result"

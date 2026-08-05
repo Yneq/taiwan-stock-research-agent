@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from app.clients.news import NewsSearchClient, NewsSearchError
 from app.clients.stocktracker import StockTrackerClient, StockTrackerError
 
 
@@ -29,8 +30,13 @@ class ToolExecution:
 
 
 class ToolExecutor:
-    def __init__(self, stocktracker: StockTrackerClient) -> None:
+    def __init__(
+        self,
+        stocktracker: StockTrackerClient,
+        news: NewsSearchClient,
+    ) -> None:
         self._stocktracker = stocktracker
+        self._news = news
 
     async def execute(
         self, call_id: str, name: str, arguments: dict[str, Any]
@@ -43,6 +49,12 @@ class ToolExecutor:
                 result = await self._stocktracker.get_revenue(
                     arguments["stock_code"], int(arguments.get("months", 12))
                 )
+            elif name == "search_news":
+                result = await self._news.search(
+                    arguments["query"],
+                    days=int(arguments.get("days", 7)),
+                    max_results=int(arguments.get("max_results", 5)),
+                )
             else:
                 raise ValueError(f"Unsupported tool: {name}")
             return ToolExecution(
@@ -53,7 +65,13 @@ class ToolExecutor:
                 status="success",
                 duration_ms=self._elapsed_ms(started),
             )
-        except (KeyError, TypeError, ValueError, StockTrackerError) as exc:
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            NewsSearchError,
+            StockTrackerError,
+        ) as exc:
             error = str(exc)
             return ToolExecution(
                 call_id=call_id,

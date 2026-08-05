@@ -11,7 +11,7 @@ The companion Java MCP Server lives in
 
 - Agentic tool selection with a bounded multi-step loop
 - Gemini Interactions API function calling
-- Google Search grounding with structured citations
+- Free, keyless current-news search with structured citations
 - Python MCP Client calling a separate Java/Spring Boot MCP Server
 - Observable tool traces, failure handling, rate limiting, tests, and eval cases
 - Cost-aware deployment where the hosted model stays outside the app container
@@ -23,7 +23,8 @@ Browser
    │
    ▼
 FastAPI research service ───────► Gemini Interactions API
-   │                                └─ Google Search grounding
+   │
+   ├── current-news search ─────► Google News RSS
    │
    └── MCP + X-Agent-Key ───────► TaiwanStockTracker (Spring Boot)
                                       ├─ TWSE MIS
@@ -41,8 +42,8 @@ Protocol and sends only their JSON results back to the model.
 2. It chooses zero or more tools:
    - `get_stock_snapshot`
    - `get_revenue_history`
-   - managed `google_search`
-3. FastAPI acts as an MCP Client and executes custom tools on the Java MCP Server.
+   - `search_news`
+3. FastAPI executes the news tool locally and acts as an MCP Client for Java tools.
 4. Tool results return to the same Gemini interaction.
 5. The model produces a Traditional Chinese brief with explicit limitations.
 6. The UI displays the answer, tool trace, citations, and disclaimer.
@@ -70,7 +71,7 @@ tests/              # orchestration, configuration, and HTTP adapter tests
 
 - Python 3.12
 - A running TaiwanStockTracker service with its `/mcp` endpoint enabled
-- Gemini API key with access to a Gemini 3 model
+- Gemini API key with free-tier access to Gemini 2.5 Flash
 
 ## Local setup
 
@@ -86,7 +87,7 @@ local environment manager:
 
 ```text
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-2.5-flash
 STOCKTRACKER_BASE_URL=http://localhost:8080
 STOCKTRACKER_API_KEY=...
 MAX_AGENT_STEPS=3
@@ -120,8 +121,8 @@ Open `http://localhost:8000` or view the API contract at
 The response includes:
 
 - the final research answer;
-- every custom and managed search tool trace;
-- structured source URLs returned by Gemini grounding;
+- every custom tool trace;
+- structured source URLs returned by the news search tool;
 - the active model ID and financial-information disclaimer.
 
 ### `GET /health`
