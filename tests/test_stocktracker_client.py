@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from app.clients.stocktracker import StockTrackerClient, StockTrackerError
@@ -99,4 +100,36 @@ async def test_discovers_registered_mcp_tools() -> None:
     assert await client.list_tool_names() == [
         "get_stock_snapshot",
         "get_revenue_history",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_waits_for_sleeping_service_to_become_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = iter([503, 200])
+    requests: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(str(request.url))
+        return httpx.Response(next(statuses))
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("app.clients.stocktracker.asyncio.sleep", no_sleep)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler)
+    ) as readiness_client:
+        client = StockTrackerClient(
+            "https://stock.example",
+            "secret",
+            timeout_seconds=5,
+            readiness_client=readiness_client,
+        )
+        await client._wait_until_ready()
+
+    assert requests == [
+        "https://stock.example/health",
+        "https://stock.example/health",
     ]

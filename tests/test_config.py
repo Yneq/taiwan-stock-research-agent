@@ -15,8 +15,10 @@ def test_loads_bounded_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret")
     monkeypatch.setenv("STOCKTRACKER_API_KEY", "service-secret")
     monkeypatch.setenv("MAX_AGENT_STEPS", "4")
+    monkeypatch.delenv("REQUEST_TIMEOUT_SECONDS", raising=False)
 
     settings = Settings.from_environment()
 
     assert settings.max_agent_steps == 4
     assert settings.stocktracker_base_url == "http://localhost:8080"
+    assert settings.request_timeout_seconds == 75

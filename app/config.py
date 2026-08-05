@@ -44,7 +44,7 @@ class Settings:
             ).rstrip("/"),
             stocktracker_api_key=stocktracker_api_key,
             max_agent_steps=max_steps,
-            request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "10")),
+            request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "75")),
         )
 
 

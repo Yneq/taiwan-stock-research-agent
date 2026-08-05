@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import AsyncExitStack
 from typing import Any
 
 import httpx
+
+
+logger = logging.getLogger(__name__)
 
 
 class StockTrackerError(RuntimeError):
@@ -19,19 +23,30 @@ class StockTrackerClient:
         api_key: str,
         timeout_seconds: float = 10,
         session: Any | None = None,
+        readiness_client: httpx.AsyncClient | None = None,
     ) -> None:
-        self._mcp_url = f"{base_url.rstrip('/')}/mcp"
+        normalized_base_url = base_url.rstrip("/")
+        self._mcp_url = f"{normalized_base_url}/mcp"
+        self._health_url = f"{normalized_base_url}/health"
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
         self._session = session
         self._owns_session = session is None
+        self._readiness_client = readiness_client
+        self._owns_readiness_client = readiness_client is None
         self._exit_stack = AsyncExitStack()
         self._connect_lock = asyncio.Lock()
 
     async def close(self) -> None:
         if self._owns_session:
-            await self._exit_stack.aclose()
+            try:
+                await self._exit_stack.aclose()
+            except Exception:
+                logger.debug("MCP session cleanup failed", exc_info=True)
             self._session = None
+        if self._owns_readiness_client and self._readiness_client is not None:
+            await self._readiness_client.aclose()
+            self._readiness_client = None
 
     async def get_snapshot(self, stock_code: str) -> dict[str, Any]:
         return await self._call_tool(
@@ -76,6 +91,7 @@ class StockTrackerClient:
                 return self._session
 
             try:
+                await self._wait_until_ready()
                 from mcp import ClientSession
                 from mcp.client.streamable_http import streamable_http_client
 
@@ -104,6 +120,32 @@ class StockTrackerClient:
                 ) from exc
 
         return self._session
+
+    async def _wait_until_ready(self) -> None:
+        """Wake a sleeping free-tier data service before opening MCP streams."""
+        if self._readiness_client is None:
+            self._readiness_client = httpx.AsyncClient(
+                headers={"X-Agent-Key": self._api_key},
+                timeout=min(10.0, self._timeout_seconds),
+                follow_redirects=True,
+            )
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._timeout_seconds
+        while True:
+            try:
+                response = await self._readiness_client.get(self._health_url)
+                if response.is_success:
+                    return
+            except httpx.HTTPError:
+                pass
+
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise StockTrackerError(
+                    "StockTracker service did not become ready before timeout"
+                )
+            await asyncio.sleep(min(2.0, remaining))
 
     def _decode_tool_result(self, result: Any) -> dict[str, Any]:
         if getattr(result, "isError", False) or getattr(result, "is_error", False):
