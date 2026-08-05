@@ -71,7 +71,7 @@ tests/              # orchestration, configuration, and HTTP adapter tests
 
 - Python 3.12
 - A running TaiwanStockTracker service with its `/mcp` endpoint enabled
-- Gemini API key with free-tier access to Gemini 2.5 Flash
+- Gemini API key with free-tier access to Gemini 3.6 Flash
 
 ## Local setup
 
@@ -87,7 +87,7 @@ local environment manager:
 
 ```text
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.6-flash
 STOCKTRACKER_BASE_URL=http://localhost:8080
 STOCKTRACKER_API_KEY=...
 MAX_AGENT_STEPS=3
