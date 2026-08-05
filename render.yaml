@@ -16,4 +16,4 @@ services:
       - key: MAX_AGENT_STEPS
         value: "3"
       - key: REQUEST_TIMEOUT_SECONDS
-        value: "15"
+        value: "75"
