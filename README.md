@@ -147,6 +147,16 @@ With both services running, execute the deterministic tool-use checks:
 python evals/run_evals.py --base-url http://localhost:8000
 ```
 
+To verify the MCP connection without invoking Gemini, start the Java service
+and run:
+
+```bash
+.venv/bin/python scripts/check_mcp.py --stock-code 2330
+```
+
+The command discovers the tools registered by the Java MCP Server and calls
+`get_stock_snapshot` through MCP using the shared service key.
+
 The runner scores required tool selection, important tool arguments, unnecessary
 tool calls, and citation presence. Qualitative answer claims remain a manual
 review item for the MVP.

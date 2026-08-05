@@ -44,6 +44,14 @@ class StockTrackerClient:
             {"stockCode": stock_code, "months": months},
         )
 
+    async def list_tool_names(self) -> list[str]:
+        session = await self._ensure_session()
+        try:
+            result = await session.list_tools()
+        except Exception as exc:
+            raise StockTrackerError(f"Unable to list StockTracker MCP tools: {exc}") from exc
+        return [tool.name for tool in result.tools]
+
     async def _call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> dict[str, Any]:

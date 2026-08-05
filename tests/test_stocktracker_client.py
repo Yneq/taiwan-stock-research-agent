@@ -9,13 +9,19 @@ from app.clients.stocktracker import StockTrackerClient, StockTrackerError
 
 
 class FakeMcpSession:
-    def __init__(self, result: object) -> None:
+    def __init__(self, result: object, tool_names: list[str] | None = None) -> None:
         self.result = result
+        self.tool_names = tool_names or []
         self.calls: list[tuple[str, dict]] = []
 
     async def call_tool(self, name: str, arguments: dict) -> object:
         self.calls.append((name, arguments))
         return self.result
+
+    async def list_tools(self) -> object:
+        return SimpleNamespace(
+            tools=[SimpleNamespace(name=name) for name in self.tool_names]
+        )
 
 
 @pytest.mark.asyncio
@@ -78,3 +84,19 @@ async def test_normalizes_mcp_tool_error() -> None:
 
     with pytest.raises(StockTrackerError, match="STOCK_NOT_FOUND"):
         await client.get_snapshot("9999")
+
+
+@pytest.mark.asyncio
+async def test_discovers_registered_mcp_tools() -> None:
+    session = FakeMcpSession(
+        SimpleNamespace(isError=False, structuredContent={}, content=[]),
+        tool_names=["get_stock_snapshot", "get_revenue_history"],
+    )
+    client = StockTrackerClient(
+        "https://stock.example", "secret", session=session
+    )
+
+    assert await client.list_tool_names() == [
+        "get_stock_snapshot",
+        "get_revenue_history",
+    ]
