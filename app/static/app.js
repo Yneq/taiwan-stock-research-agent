@@ -457,8 +457,16 @@ function renderCitations(items) {
     arrow.textContent = "↗";
     title.append(arrow);
     const url = document.createElement("small");
-    url.textContent = item.url;
+    url.textContent = sourceHost(item.url);
     link.append(title, url);
     citations.append(link);
   });
+}
+
+function sourceHost(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "") || "開啟原文";
+  } catch {
+    return "開啟原文";
+  }
 }
