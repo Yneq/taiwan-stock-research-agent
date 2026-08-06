@@ -104,6 +104,20 @@ async def test_discovers_registered_mcp_tools() -> None:
 
 
 @pytest.mark.asyncio
+async def test_warmup_reuses_existing_mcp_session() -> None:
+    session = FakeMcpSession(
+        SimpleNamespace(isError=False, structuredContent={}, content=[])
+    )
+    client = StockTrackerClient(
+        "https://stock.example", "secret", session=session
+    )
+
+    await client.warmup()
+
+    assert client._session is session
+
+
+@pytest.mark.asyncio
 async def test_waits_for_sleeping_service_to_become_ready(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

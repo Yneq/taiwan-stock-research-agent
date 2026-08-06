@@ -10,9 +10,16 @@ const results = document.querySelector("#results");
 const answerContent = document.querySelector("#answer-content");
 const traces = document.querySelector("#tool-traces");
 const citations = document.querySelector("#citations");
+const dataDashboard = document.querySelector("#data-dashboard");
+const metricGrid = document.querySelector("#metric-grid");
+const chartGrid = document.querySelector("#chart-grid");
 
 let lastQuestion = "";
 let loadingTimer;
+
+// Start the Java data service as soon as the public homepage is opened.
+// This does not send a Gemini request or consume model tokens.
+void fetch("/api/warmup", { method: "POST", keepalive: true }).catch(() => {});
 
 question.addEventListener("input", () => {
   count.textContent = `${question.value.length} / 500`;
@@ -95,33 +102,301 @@ function renderResult(payload) {
   document.querySelector("#model-badge").textContent = payload.model;
   renderTraces(payload.tool_calls || []);
   renderCitations(payload.citations || []);
+  renderDataDashboard(payload.tool_calls || []);
   results.hidden = false;
   results.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function formatAnswer(text) {
   const fragment = document.createDocumentFragment();
-  const blocks = text.split(/\n{2,}/).filter(Boolean);
-  blocks.forEach((block) => {
-    const cleaned = block.trim();
-    const headingMatch = cleaned.match(/^(?:#{1,3}\s*)?(摘要|關鍵數據|可能影響因素|資料限制|結論)[:：]?\s*(.*)$/s);
-    if (headingMatch) {
-      const heading = document.createElement("h3");
-      heading.textContent = headingMatch[1];
-      fragment.append(heading);
-      if (headingMatch[2]) fragment.append(createParagraph(headingMatch[2]));
-    } else {
-      fragment.append(createParagraph(cleaned.replace(/^[-*]\s+/gm, "• ")));
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  let paragraphLines = [];
+  let list = null;
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    fragment.append(createParagraph(paragraphLines.join(" ")));
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (!list) return;
+    fragment.append(list);
+    list = null;
+  };
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      return;
     }
+
+    if (/^_{3,}$|^-{3,}$/.test(line)) {
+      flushParagraph();
+      flushList();
+      fragment.append(document.createElement("hr"));
+      return;
+    }
+
+    const heading = parseHeading(line);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const element = document.createElement(heading.level === 2 ? "h2" : "h3");
+      appendInlineMarkdown(element, heading.title);
+      fragment.append(element);
+      if (heading.trailing) fragment.append(createParagraph(heading.trailing));
+      return;
+    }
+
+    const unorderedItem = line.match(/^[-*•]\s+(.+)$/);
+    const orderedItem = line.match(/^\d+[.)、]\s*(.+)$/);
+    if (unorderedItem || orderedItem) {
+      flushParagraph();
+      const type = orderedItem ? "ol" : "ul";
+      if (!list || list.tagName.toLowerCase() !== type) {
+        flushList();
+        list = document.createElement(type);
+      }
+      const item = document.createElement("li");
+      appendInlineMarkdown(item, (orderedItem || unorderedItem)[1]);
+      list.append(item);
+      return;
+    }
+
+    flushList();
+    paragraphLines.push(line);
   });
+
+  flushParagraph();
+  flushList();
   return Array.from(fragment.childNodes);
+}
+
+function parseHeading(line) {
+  const markdownHeading = line.match(/^(#{1,4})\s+(.+)$/);
+  if (markdownHeading) {
+    return {
+      level: markdownHeading[1].length <= 2 ? 2 : 3,
+      title: normalizeHeading(markdownHeading[2]),
+      trailing: "",
+    };
+  }
+
+  const sectionHeading = line.match(
+    /^(?:[一二三四五六七八九十]+[、.．]\s*)?(摘要|關鍵數據(?:與事實)?|可能影響因素|資料限制|結論)[:：]?\s*(.*)$/,
+  );
+  if (!sectionHeading) return null;
+  return {
+    level: 3,
+    title: sectionHeading[1],
+    trailing: sectionHeading[2],
+  };
+}
+
+function normalizeHeading(text) {
+  return text
+    .replace(/^(?:[一二三四五六七八九十]+[、.．]\s*)/, "")
+    .replace(/[:：]\s*$/, "");
+}
+
+function appendInlineMarkdown(parent, text) {
+  const pattern = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*)/g;
+  let cursor = 0;
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > cursor) {
+      parent.append(document.createTextNode(text.slice(cursor, match.index)));
+    }
+    const token = match[0];
+    let element;
+    if (token.startsWith("**") || token.startsWith("__")) {
+      element = document.createElement("strong");
+      element.textContent = token.slice(2, -2);
+    } else if (token.startsWith("`")) {
+      element = document.createElement("code");
+      element.textContent = token.slice(1, -1);
+    } else {
+      element = document.createElement("em");
+      element.textContent = token.slice(1, -1);
+    }
+    parent.append(element);
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < text.length) {
+    parent.append(document.createTextNode(text.slice(cursor)));
+  }
 }
 
 function createParagraph(text) {
   const paragraph = document.createElement("p");
-  paragraph.textContent = text;
-  paragraph.style.whiteSpace = "pre-line";
+  appendInlineMarkdown(paragraph, text);
   return paragraph;
+}
+
+function renderDataDashboard(items) {
+  metricGrid.replaceChildren();
+  chartGrid.replaceChildren();
+
+  const snapshots = deduplicateToolData(items, "get_stock_snapshot");
+  const revenues = deduplicateToolData(items, "get_revenue_history");
+
+  snapshots.forEach((snapshot) => renderSnapshotMetrics(snapshot));
+  snapshots.slice(0, 2).forEach((snapshot) => {
+    const rows = [
+      { label: "昨收", value: Number(snapshot.previousClose) },
+      { label: "開盤", value: Number(snapshot.openPrice) },
+      { label: "現價", value: Number(snapshot.currentPrice) },
+    ].filter((row) => Number.isFinite(row.value));
+    if (rows.length) {
+      chartGrid.append(
+        createChartCard(
+          `${snapshot.stockCode || ""} 價格基準`,
+          snapshot.stockName || "即時行情",
+          rows,
+          (value) => formatNumber(value),
+          "price",
+        ),
+      );
+    }
+  });
+
+  revenues.forEach((revenue) => {
+    const rows = (revenue.data || [])
+      .map((point) => ({
+        label: formatMonth(point.date),
+        value: Number(point.revenue),
+      }))
+      .filter((row) => Number.isFinite(row.value))
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .slice(-12);
+    if (rows.length) {
+      chartGrid.append(
+        createChartCard(
+          `${revenue.stockCode || ""} 月營收趨勢`,
+          `最近 ${rows.length} 個月 · TWD`,
+          rows,
+          formatCompactNumber,
+          "revenue",
+        ),
+      );
+    }
+  });
+
+  dataDashboard.hidden = metricGrid.childElementCount === 0 && chartGrid.childElementCount === 0;
+}
+
+function deduplicateToolData(items, toolName) {
+  const unique = new Map();
+  items
+    .filter((item) => item.tool === toolName && item.status === "success" && item.data)
+    .forEach((item) => {
+      const key = item.data.stockCode || JSON.stringify(item.arguments);
+      unique.set(key, item.data);
+    });
+  return Array.from(unique.values());
+}
+
+function renderSnapshotMetrics(snapshot) {
+  const code = snapshot.stockCode || "台股";
+  const name = snapshot.stockName || "即時行情";
+  const change = Number(snapshot.changePercent);
+  const changeTone = Number.isFinite(change) ? (change >= 0 ? "positive" : "negative") : "";
+  metricGrid.append(
+    createMetricCard(`${code} ${name}`, "即時成交", formatMoney(snapshot.currentPrice, snapshot.currency), "primary"),
+    createMetricCard("今日漲跌", "相較昨收", formatPercent(change), changeTone),
+    createMetricCard("今日開盤", code, formatMoney(snapshot.openPrice, snapshot.currency)),
+    createMetricCard("昨日收盤", code, formatMoney(snapshot.previousClose, snapshot.currency)),
+  );
+}
+
+function createMetricCard(title, caption, value, tone = "") {
+  const card = document.createElement("article");
+  card.className = `metric-card ${tone}`.trim();
+  const top = document.createElement("div");
+  const label = document.createElement("span");
+  label.textContent = title;
+  const detail = document.createElement("small");
+  detail.textContent = caption;
+  top.append(label, detail);
+  const metric = document.createElement("strong");
+  metric.textContent = value;
+  card.append(top, metric);
+  return card;
+}
+
+function createChartCard(title, subtitle, rows, formatter, tone) {
+  const card = document.createElement("article");
+  card.className = "chart-card";
+  const heading = document.createElement("div");
+  heading.className = "chart-heading";
+  const text = document.createElement("div");
+  const headingTitle = document.createElement("h3");
+  headingTitle.textContent = title;
+  const headingSubtitle = document.createElement("p");
+  headingSubtitle.textContent = subtitle;
+  text.append(headingTitle, headingSubtitle);
+  const badge = document.createElement("span");
+  badge.textContent = tone === "revenue" ? "REVENUE" : "PRICE";
+  heading.append(text, badge);
+
+  const plot = document.createElement("div");
+  plot.className = `bar-chart ${tone}`;
+  plot.setAttribute("role", "img");
+  plot.setAttribute("aria-label", `${title}長條圖`);
+  const maximum = Math.max(...rows.map((row) => row.value), 1);
+  rows.forEach((row) => {
+    const column = document.createElement("div");
+    column.className = "bar-column";
+    column.title = `${row.label}: ${formatter(row.value)}`;
+    const value = document.createElement("span");
+    value.className = "bar-value";
+    value.textContent = formatter(row.value);
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    const bar = document.createElement("i");
+    bar.style.height = `${Math.max(8, (row.value / maximum) * 100)}%`;
+    track.append(bar);
+    const label = document.createElement("span");
+    label.className = "bar-label";
+    label.textContent = row.label;
+    column.append(value, track, label);
+    plot.append(column);
+  });
+  card.append(heading, plot);
+  return card;
+}
+
+function formatNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(number);
+}
+
+function formatCompactNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return new Intl.NumberFormat("zh-TW", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(number);
+}
+
+function formatMoney(value, currency = "TWD") {
+  const formatted = formatNumber(value);
+  return formatted === "—" ? formatted : `${formatted} ${currency || "TWD"}`;
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return "—";
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatMonth(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}/${match[2]}` : String(value || "");
 }
 
 function renderTraces(items) {

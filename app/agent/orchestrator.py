@@ -20,6 +20,7 @@ SYSTEM_PROMPT = """
 5. 區分已確認事實與可能影響因素，不把時間相關性寫成直接因果。
 6. 若資料不足或工具失敗，清楚說明限制，不得編造答案。
 7. 最終使用繁體中文，包含「摘要、關鍵數據、可能影響因素、資料限制」四部分。
+8. 公司名稱與股票代碼不得自行猜測；有工具結果時以 stockCode 與 stockName 為準，未核對時不要補上使用者未提供的代碼。
 """.strip()
 
 
@@ -92,6 +93,13 @@ class ResearchOrchestrator:
                     status=item.status,
                     duration_ms=item.duration_ms,
                     error=item.error,
+                    data=(
+                        item.result
+                        if item.status == "success"
+                        and item.name
+                        in {"get_stock_snapshot", "get_revenue_history"}
+                        else None
+                    ),
                 )
                 for item in executions
             )

@@ -116,6 +116,12 @@ async def test_executes_tool_and_returns_grounded_answer() -> None:
         "get_stock_snapshot",
         "search_news",
     ]
+    assert outcome.traces[0].data == {
+        "stockCode": "2330",
+        "currentPrice": 1120,
+        "changePercent": 1.36,
+    }
+    assert outcome.traces[1].data is None
     assert outcome.citations[0].url == "https://example.com/news"
     assert gateway.continuations[0][0]["type"] == "function_result"
 

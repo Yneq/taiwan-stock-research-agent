@@ -67,6 +67,10 @@ class StockTrackerClient:
             raise StockTrackerError(f"Unable to list StockTracker MCP tools: {exc}") from exc
         return [tool.name for tool in result.tools]
 
+    async def warmup(self) -> None:
+        """Wake the data service and establish the reusable MCP session."""
+        await self._ensure_session()
+
     async def _call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> dict[str, Any]:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -18,6 +20,14 @@ from app.tools.executor import ToolExecutor
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+logger = logging.getLogger(__name__)
+
+
+async def warm_stocktracker(stocktracker: StockTrackerClient) -> None:
+    try:
+        await stocktracker.warmup()
+    except Exception:
+        logger.warning("Background StockTracker warmup failed", exc_info=True)
 
 
 @asynccontextmanager
@@ -38,7 +48,16 @@ async def lifespan(app: FastAPI):
         executor=ToolExecutor(stocktracker, news),
         max_steps=settings.max_agent_steps,
     )
+    app.state.stocktracker = stocktracker
+    app.state.stocktracker_warmup_task = None
     yield
+    warmup_task = app.state.stocktracker_warmup_task
+    if warmup_task is not None and not warmup_task.done():
+        warmup_task.cancel()
+        try:
+            await warmup_task
+        except asyncio.CancelledError:
+            pass
     await stocktracker.close()
     await news.close()
 
@@ -61,3 +80,17 @@ async def index() -> FileResponse:
 @app.get("/health", tags=["operations"])
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post(
+    "/api/warmup",
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["operations"],
+)
+async def warmup() -> dict[str, str]:
+    task = app.state.stocktracker_warmup_task
+    if task is None or task.done():
+        app.state.stocktracker_warmup_task = asyncio.create_task(
+            warm_stocktracker(app.state.stocktracker)
+        )
+    return {"status": "warming"}

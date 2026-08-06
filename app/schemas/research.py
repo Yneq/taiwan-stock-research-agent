@@ -15,6 +15,7 @@ class ToolTrace(BaseModel):
     status: str
     duration_ms: int
     error: str | None = None
+    data: dict[str, Any] | None = None
 
 
 class Citation(BaseModel):
