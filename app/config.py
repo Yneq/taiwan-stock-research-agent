@@ -38,7 +38,7 @@ class Settings:
 
         return cls(
             gemini_api_key=gemini_api_key,
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip(),
+            gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip(),
             stocktracker_base_url=os.getenv(
                 "STOCKTRACKER_BASE_URL", "http://localhost:8080"
             ).rstrip("/"),
