@@ -91,7 +91,7 @@ GEMINI_MODEL=gemini-3.6-flash
 STOCKTRACKER_BASE_URL=http://localhost:8080
 STOCKTRACKER_API_KEY=...
 MAX_AGENT_STEPS=3
-REQUEST_TIMEOUT_SECONDS=75
+REQUEST_TIMEOUT_SECONDS=150
 ```
 
 The application automatically loads a local `.env` file through
@@ -172,7 +172,7 @@ The Java MCP Server is deployed separately. Its public URL becomes
 The shared random service key is configured as `AGENT_API_KEY` on Java and
 `STOCKTRACKER_API_KEY` on Python.
 
-The production timeout is 75 seconds so a first request can wait for the free
+The production timeout is 150 seconds so a first request can wait for the free
 Java service to wake from inactivity. Warm requests normally complete much
 faster.
 

@@ -21,4 +21,4 @@ def test_loads_bounded_settings(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert settings.max_agent_steps == 4
     assert settings.stocktracker_base_url == "http://localhost:8080"
-    assert settings.request_timeout_seconds == 75
+    assert settings.request_timeout_seconds == 150
