@@ -205,7 +205,17 @@ h1 em { color: var(--teal); font-weight: 500; }
 #submit-button:hover, #retry-button:hover { transform: translateY(-2px); background: var(--teal); }
 #submit-button:disabled { cursor: wait; opacity: 0.55; transform: none; }
 
-.suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.suggestion-panel { max-width: 820px; margin-top: 20px; }
+
+.suggestion-label {
+  margin: 0 0 10px;
+  color: #65736f;
+  font: 650 0.67rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .suggestions button {
   padding: 9px 13px;
@@ -218,6 +228,7 @@ h1 em { color: var(--teal); font-weight: 500; }
 }
 
 .suggestions button:hover { color: var(--ink); border-color: var(--teal); background: rgba(255,255,255,.45); }
+.suggestions button:disabled { cursor: wait; opacity: 0.45; }
 
 .loading-panel, .error-panel {
   margin: 20px 0 90px;

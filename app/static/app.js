@@ -22,7 +22,7 @@ document.querySelectorAll("[data-question]").forEach((button) => {
   button.addEventListener("click", () => {
     question.value = button.dataset.question;
     question.dispatchEvent(new Event("input"));
-    question.focus();
+    form.requestSubmit();
   });
 });
 
@@ -59,6 +59,9 @@ form.addEventListener("submit", async (event) => {
 
 function setLoading(active) {
   submit.disabled = active;
+  document.querySelectorAll("[data-question]").forEach((button) => {
+    button.disabled = active;
+  });
   loadingPanel.hidden = !active;
   errorPanel.hidden = true;
   if (active) {
