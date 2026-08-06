@@ -456,17 +456,7 @@ function renderCitations(items) {
     const arrow = document.createElement("span");
     arrow.textContent = "↗";
     title.append(arrow);
-    const url = document.createElement("small");
-    url.textContent = sourceHost(item.url);
-    link.append(title, url);
+    link.append(title);
     citations.append(link);
   });
-}
-
-function sourceHost(value) {
-  try {
-    return new URL(value).hostname.replace(/^www\./, "") || "開啟原文";
-  } catch {
-    return "開啟原文";
-  }
 }

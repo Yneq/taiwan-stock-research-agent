@@ -413,7 +413,6 @@ h1 em { color: var(--teal); font-weight: 500; }
 .citation-link:hover { transform: translateX(3px); background: white; }
 .citation-link strong { display: flex; justify-content: space-between; gap: 12px; font-size: .75rem; }
 .citation-link strong span { flex: 0 0 auto; }
-.citation-link small { display: block; margin-top: 5px; color: #71807c; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-state { margin: 8px 0 0; color: #71807c; font-size: .76rem; line-height: 1.6; }
 
 footer { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 26px 0 34px; display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); color: #65736f; font: 600 .65rem ui-monospace, monospace; text-transform: uppercase; letter-spacing: .07em; }
