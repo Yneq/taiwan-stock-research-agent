@@ -115,6 +115,7 @@ async def test_warmup_reuses_existing_mcp_session() -> None:
     await client.warmup()
 
     assert client._session is session
+    assert client.warmup_url == "https://stock.example/health"
 
 
 @pytest.mark.asyncio

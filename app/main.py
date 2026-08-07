@@ -93,4 +93,7 @@ async def warmup() -> dict[str, str]:
         app.state.stocktracker_warmup_task = asyncio.create_task(
             warm_stocktracker(app.state.stocktracker)
         )
-    return {"status": "warming"}
+    return {
+        "status": "warming",
+        "wake_url": app.state.stocktracker.warmup_url,
+    }

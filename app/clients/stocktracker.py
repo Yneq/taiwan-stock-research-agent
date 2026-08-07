@@ -37,6 +37,10 @@ class StockTrackerClient:
         self._exit_stack = AsyncExitStack()
         self._connect_lock = asyncio.Lock()
 
+    @property
+    def warmup_url(self) -> str:
+        return self._health_url
+
     async def close(self) -> None:
         if self._owns_session:
             try:

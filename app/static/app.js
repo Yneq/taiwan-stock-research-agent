@@ -19,7 +19,31 @@ let loadingTimer;
 
 // Start the Java data service as soon as the public homepage is opened.
 // This does not send a Gemini request or consume model tokens.
-void fetch("/api/warmup", { method: "POST", keepalive: true }).catch(() => {});
+void warmDataService();
+
+async function warmDataService() {
+  try {
+    const response = await fetch("/api/warmup", {
+      method: "POST",
+      keepalive: true,
+    });
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    if (typeof payload.wake_url !== "string" || !payload.wake_url) return;
+
+    // A direct browser request reliably triggers Render's free-tier wake-up
+    // while Python prepares the reusable MCP session in parallel.
+    void fetch(payload.wake_url, {
+      method: "GET",
+      mode: "no-cors",
+      cache: "no-store",
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Warm-up is best effort; a real research request still performs retries.
+  }
+}
 
 question.addEventListener("input", () => {
   count.textContent = `${question.value.length} / 500`;
