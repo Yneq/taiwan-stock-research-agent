@@ -187,7 +187,7 @@ button { cursor: pointer; }
 .hero-row {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 40px;
 }
 .hero h1 {
@@ -210,21 +210,6 @@ button { cursor: pointer; }
   border: 2px solid var(--seal);
   border-radius: 8px;
   transform: rotate(-2deg);
-}
-.verified-chop {
-  flex: none;
-  width: 128px;
-  height: 128px;
-  display: grid;
-  place-items: center;
-  border: 2.5px solid var(--seal);
-  border-radius: 16px;
-  color: var(--seal);
-  box-shadow: inset 0 0 0 1px var(--seal-soft);
-  font: 700 1.03rem / 1.5 "Noto Serif TC", serif;
-  letter-spacing: 0.13em;
-  writing-mode: vertical-rl;
-  transform: rotate(-7deg);
 }
 .hero-copy {
   max-width: 650px;
@@ -614,10 +599,14 @@ button { cursor: pointer; }
   width: 8px;
   height: 8px;
   border-radius: 2px;
-  background: var(--seal);
+  background: var(--jade);
+  box-shadow: 0 0 0 4px rgba(46, 156, 108, 0.12);
   transform: rotate(-6deg);
 }
-.tool-traces li.error::before { background: var(--jade); }
+.tool-traces li.error::before {
+  background: var(--seal);
+  box-shadow: 0 0 0 4px rgba(193, 56, 43, 0.12);
+}
 .trace-name { display: block; color: var(--text-hi); font: 600 0.71rem "JetBrains Mono", monospace; }
 .trace-detail { display: block; margin-top: 5px; color: var(--text-faint); font-size: 0.69rem; line-height: 1.45; overflow-wrap: anywhere; }
 .citations { display: grid; gap: 9px; padding-top: 13px; }
@@ -657,7 +646,6 @@ footer p { margin: 0; }
   .site-header, main, footer { width: min(100% - 32px, 1120px); }
   .hero { padding-top: 56px; }
   .hero h1 { font-size: clamp(2.7rem, 11vw, 4.2rem); }
-  .verified-chop { width: 104px; height: 104px; }
   .preflight-ledger, .chart-grid, .results-grid { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .loading-panel { align-items: flex-start; }
@@ -670,7 +658,6 @@ footer p { margin: 0; }
   .hero { padding: 44px 0 32px; }
   .hero-row { align-items: center; gap: 16px; }
   .hero h1 { font-size: clamp(2.35rem, 12.5vw, 3.25rem); }
-  .verified-chop { width: 76px; height: 76px; border-radius: 11px; font-size: 0.8rem; }
   .hero-copy br { display: none; }
   .research-console { margin-top: 35px; padding: 19px; }
   .console-heading h2 { font-size: 1.32rem; }
