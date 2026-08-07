@@ -8,12 +8,27 @@
       content="以即時行情與可驗證新聞來源為基礎的台股研究助理。"
     />
     <title>FinScope TW — 台股研究助理</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Noto+Sans+TC:wght@400;500;600;700&amp;family=Noto+Serif+TC:wght@500;700&amp;display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <div class="ledger-bg" aria-hidden="true"></div>
+
+    <div class="ticker-wrap" aria-label="台股即時行情">
+      <div id="ticker-track" class="ticker-track">
+        <span class="ticker-message"><b>TWSE</b> 行情服務喚醒中…</span>
+        <span class="ticker-message"><b>TWSE</b> 行情服務喚醒中…</span>
+      </div>
+    </div>
+
     <header class="site-header">
-      <a class="brand" href="/" aria-label="FinScope TW 首頁">
-        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <a class="wordmark" href="/" aria-label="FinScope TW 首頁">
+        <span class="wordmark-chop" aria-hidden="true">印</span>
         <span>FinScope <b>TW</b></span>
       </a>
       <div class="system-status" role="status">
@@ -24,92 +39,102 @@
 
     <main>
       <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-intro">
-          <p class="eyebrow"><span>AI-GROUNDED RESEARCH</span> · TAIWAN EQUITIES</p>
+        <p class="eyebrow">AI-GROUNDED RESEARCH · TAIWAN EQUITIES</p>
+        <div class="hero-row">
           <h1 id="hero-title">台股研究<br /><em>指揮中心。</em></h1>
-          <p class="hero-copy">
-            即時股價來自 TaiwanStockTracker，事件脈絡由 AI 搜尋公開來源。
-            每個數字與結論都留下查詢軌跡。
-          </p>
-          <div class="capability-strip" aria-label="資料能力">
-            <span><i></i>TWSE 即時行情</span>
-            <span><i></i>月營收趨勢</span>
-            <span><i></i>公開新聞脈絡</span>
+          <div class="verified-chop" aria-label="已查證">已查證</div>
+        </div>
+        <p class="hero-copy">
+          即時股價來自 <strong>TaiwanStockTracker</strong>，事件脈絡由 AI 搜尋公開來源。<br />
+          每個數字與結論，都留下可回溯的查詢軌跡。
+        </p>
+        <div class="capability-strip" aria-label="資料能力">
+          <span><i></i>TWSE 即時行情</span>
+          <span><i></i>月營收趨勢</span>
+          <span><i></i>公開新聞脈絡</span>
+        </div>
+      </section>
+
+      <section class="research-console" aria-labelledby="console-title">
+        <div class="console-heading">
+          <div>
+            <p class="console-eyebrow">RESEARCH CONSOLE</p>
+            <h2 id="console-title">今天想研究哪一檔？</h2>
+          </div>
+          <span class="live-badge"><i></i>LIVE</span>
+        </div>
+
+        <form id="research-form" class="research-form">
+          <label for="question" class="sr-only">輸入台股研究問題</label>
+          <textarea
+            id="question"
+            name="question"
+            rows="2"
+            minlength="3"
+            maxlength="500"
+            placeholder="輸入台股研究問題，例如：台積電今天股價如何？近期有哪些重要事件？"
+            required
+          ></textarea>
+          <div class="form-footer">
+            <span id="character-count">0 / 500</span>
+            <button id="submit-button" type="submit">
+              <span>開始研究</span><span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </form>
+
+        <div class="suggestion-panel">
+          <p class="suggestion-label">快速提問 · 點擊後直接開始研究</p>
+          <div class="suggestion-groups" aria-label="快速研究問題">
+            <div class="suggestion-row">
+              <span class="group-label">行情</span>
+              <button type="button" data-question="台積電 2330 今天股價如何？相較昨收漲跌多少？">2330 今日行情</button>
+              <button type="button" data-question="聯發科 2454 今天股價如何？相較昨收漲跌多少？">2454 今日行情</button>
+              <button type="button" data-question="鴻海 2317 今天股價如何？相較昨收漲跌多少？">2317 今日行情</button>
+              <button type="button" data-question="環球晶 6488 今天股價如何？相較昨收漲跌多少？">6488 今日行情</button>
+            </div>
+            <div class="suggestion-row revenue-row">
+              <span class="group-label">營收</span>
+              <button type="button" data-question="台積電 2330 最近三個月的月營收趨勢如何？">台積電 3 月營收</button>
+              <button type="button" data-question="聯發科 2454 最近六個月的月營收趨勢如何？">聯發科 6 月營收</button>
+              <button type="button" data-question="鴻海 2317 最近十二個月的月營收趨勢如何？">鴻海 12 月營收</button>
+            </div>
+            <div class="suggestion-row">
+              <span class="group-label">事件</span>
+              <button type="button" data-question="台積電最近一週有哪些可能影響公司的重要新聞？">台積電近期事件</button>
+              <button type="button" data-question="聯發科 2454 最近有哪些 AI 晶片相關的重要消息？">聯發科 AI 進展</button>
+              <button type="button" data-question="鴻海最近有哪些電動車相關的重要消息？">鴻海電動車消息</button>
+              <button type="button" data-question="根據今天或最近一個交易日的公開新聞，找出成交量最受關注的台股，並用即時行情工具核對它目前的股價與漲跌幅。">今日成交量熱門股</button>
+            </div>
+            <div class="suggestion-row">
+              <span class="group-label">比較</span>
+              <button type="button" data-question="比較台積電 2330 與聯發科 2454 今天的股價表現。">2330 vs 2454</button>
+              <button type="button" data-question="整理台積電 2330 今天的股價、最近月營收與近期重要新聞。">台積電完整研究</button>
+            </div>
           </div>
         </div>
 
-        <div class="query-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">RESEARCH CONSOLE</p>
-              <h2>今天想研究哪一檔？</h2>
+        <div id="preflight-ledger" class="preflight-ledger">
+          <article class="ledger-card">
+            <div class="ledger-head">
+              <h3>研究軌跡</h3>
+              <span>0 tools</span>
             </div>
-            <span class="panel-status">LIVE</span>
-          </div>
-
-          <form id="research-form" class="research-form">
-            <label for="question" class="sr-only">輸入台股研究問題</label>
-            <textarea
-              id="question"
-              name="question"
-              rows="2"
-              minlength="3"
-              maxlength="500"
-              placeholder="例如：台積電今天股價如何？近期有哪些重要事件？"
-              required
-            ></textarea>
-            <div class="form-footer">
-              <span id="character-count">0 / 500</span>
-              <button id="submit-button" type="submit">
-                <span>開始研究</span><span aria-hidden="true">↗</span>
-              </button>
+            <div class="ledger-empty">
+              <span class="mini-chop">軌</span>
+              <p>尚未執行工具呼叫，送出問題後會依序留下查詢紀錄。</p>
             </div>
-          </form>
-
-          <div class="suggestion-panel">
-            <p class="suggestion-label">快速提問 · 點擊後直接開始研究</p>
-            <div class="suggestions" aria-label="快速研究問題">
-            <button type="button" data-question="台積電 2330 今天股價如何？相較昨收漲跌多少？">
-              2330 今日行情
-            </button>
-            <button type="button" data-question="聯發科 2454 今天股價如何？相較昨收漲跌多少？">
-              2454 今日行情
-            </button>
-            <button type="button" data-question="鴻海 2317 今天股價如何？相較昨收漲跌多少？">
-              2317 今日行情
-            </button>
-            <button type="button" data-question="環球晶 6488 今天股價如何？相較昨收漲跌多少？">
-              6488 今日行情
-            </button>
-            <button type="button" data-question="台積電 2330 最近三個月的月營收趨勢如何？">
-              台積電 3 月營收
-            </button>
-            <button type="button" data-question="聯發科 2454 最近六個月的月營收趨勢如何？">
-              聯發科 6 月營收
-            </button>
-            <button type="button" data-question="鴻海 2317 最近十二個月的月營收趨勢如何？">
-              鴻海 12 月營收
-            </button>
-            <button type="button" data-question="台積電最近一週有哪些可能影響公司的重要新聞？">
-              台積電近期事件
-            </button>
-            <button type="button" data-question="聯發科 2454 最近有哪些 AI 晶片相關的重要消息？">
-              聯發科 AI 進展
-            </button>
-            <button type="button" data-question="鴻海最近有哪些電動車相關的重要消息？">
-              鴻海電動車消息
-            </button>
-            <button type="button" data-question="根據今天或最近一個交易日的公開新聞，找出成交量最受關注的台股，並用即時行情工具核對它目前的股價與漲跌幅。">
-              今日成交量熱門股
-            </button>
-            <button type="button" data-question="比較台積電 2330 與聯發科 2454 今天的股價表現。">
-              2330 vs 2454
-            </button>
-            <button type="button" data-question="整理台積電 2330 今天的股價、最近月營收與近期重要新聞。">
-              台積電完整研究
-            </button>
+          </article>
+          <article class="ledger-card">
+            <div class="ledger-head">
+              <h3>引用來源</h3>
+              <span>0 sources</span>
             </div>
-          </div>
+            <div class="ledger-empty">
+              <span class="mini-chop">源</span>
+              <p>尚無引用來源；公開新聞會在研究完成後附上原文連結。</p>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -118,14 +143,14 @@
           <span></span><span></span><span></span><span></span>
         </div>
         <div>
-          <p class="eyebrow">AGENT WORKING</p>
+          <p class="console-eyebrow">AGENT WORKING</p>
           <h2 id="loading-title">正在判斷需要查詢哪些資料…</h2>
           <p>服務首次喚醒可能需要約一分鐘，請保留這個頁面。</p>
         </div>
       </section>
 
       <section id="error-panel" class="error-panel" hidden role="alert">
-        <p class="eyebrow">REQUEST INTERRUPTED</p>
+        <p class="console-eyebrow">REQUEST INTERRUPTED</p>
         <h2>這次研究沒有完成</h2>
         <p id="error-message"></p>
         <button id="retry-button" type="button">重新嘗試</button>
@@ -147,6 +172,7 @@
 
         <div class="results-grid">
           <article class="answer-card">
+            <div class="document-mark" aria-hidden="true">查證</div>
             <div id="answer-content" class="answer-content"></div>
             <p id="disclaimer" class="disclaimer"></p>
           </article>
@@ -173,7 +199,7 @@
     </main>
 
     <footer>
-      <p>Research assistant, not a trading system.</p>
+      <p class="footer-note">Research assistant, not a trading system.</p>
       <p>Java · Python · Gemini · TWSE · FinMind</p>
     </footer>
 

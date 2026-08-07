@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,6 +22,8 @@ from app.tools.executor import ToolExecutor
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 logger = logging.getLogger(__name__)
+MARKET_TICKER_CODES = ("2330", "2454", "2317", "6488", "2308", "3231")
+MARKET_TICKER_CACHE_SECONDS = 300
 
 
 async def warm_stocktracker(stocktracker: StockTrackerClient) -> None:
@@ -50,6 +53,9 @@ async def lifespan(app: FastAPI):
     )
     app.state.stocktracker = stocktracker
     app.state.stocktracker_warmup_task = None
+    app.state.market_ticker_cache = []
+    app.state.market_ticker_cached_at = 0.0
+    app.state.market_ticker_lock = asyncio.Lock()
     yield
     warmup_task = app.state.stocktracker_warmup_task
     if warmup_task is not None and not warmup_task.done():
@@ -97,3 +103,35 @@ async def warmup() -> dict[str, str]:
         "status": "warming",
         "wake_url": app.state.stocktracker.warmup_url,
     }
+
+
+@app.get("/api/market-ticker", tags=["market-data"])
+async def market_ticker() -> dict[str, list[dict[str, object]]]:
+    async with app.state.market_ticker_lock:
+        now = time.monotonic()
+        cached = app.state.market_ticker_cache
+        if cached and now - app.state.market_ticker_cached_at < MARKET_TICKER_CACHE_SECONDS:
+            return {"items": cached}
+
+        items: list[dict[str, object]] = []
+        for stock_code in MARKET_TICKER_CODES:
+            try:
+                snapshot = await app.state.stocktracker.get_snapshot(stock_code)
+            except Exception:
+                logger.info("Ticker snapshot unavailable for %s", stock_code, exc_info=True)
+                continue
+            items.append(
+                {
+                    "stockCode": snapshot.get("stockCode", stock_code),
+                    "stockName": snapshot.get("stockName", ""),
+                    "currentPrice": snapshot.get("currentPrice"),
+                    "changePercent": snapshot.get("changePercent"),
+                    "currency": snapshot.get("currency", "TWD"),
+                    "quoteTime": snapshot.get("quoteTime"),
+                }
+            )
+
+        if items:
+            app.state.market_ticker_cache = items
+            app.state.market_ticker_cached_at = now
+        return {"items": items}

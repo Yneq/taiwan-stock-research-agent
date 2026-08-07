@@ -13,13 +13,17 @@ const citations = document.querySelector("#citations");
 const dataDashboard = document.querySelector("#data-dashboard");
 const metricGrid = document.querySelector("#metric-grid");
 const chartGrid = document.querySelector("#chart-grid");
+const tickerTrack = document.querySelector("#ticker-track");
+const preflightLedger = document.querySelector("#preflight-ledger");
 
 let lastQuestion = "";
 let loadingTimer;
+let tickerRefreshTimer;
 
 // Start the Java data service as soon as the public homepage is opened.
 // This does not send a Gemini request or consume model tokens.
 void warmDataService();
+void loadMarketTicker();
 
 async function warmDataService() {
   try {
@@ -45,8 +49,61 @@ async function warmDataService() {
   }
 }
 
+async function loadMarketTicker(allowRetry = true) {
+  window.clearTimeout(tickerRefreshTimer);
+  try {
+    const response = await fetch("/api/market-ticker", { cache: "no-store" });
+    if (!response.ok) throw new Error("Ticker request failed");
+    const payload = await response.json();
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (!items.length) throw new Error("Ticker data unavailable");
+    renderMarketTicker(items);
+    tickerRefreshTimer = window.setTimeout(() => void loadMarketTicker(false), 300000);
+  } catch {
+    renderTickerMessage("行情資料準備中 · 研究功能仍可使用");
+    if (allowRetry) {
+      tickerRefreshTimer = window.setTimeout(() => void loadMarketTicker(false), 30000);
+    }
+  }
+}
+
+function renderMarketTicker(items) {
+  const nodes = [...items, ...items].map((item) => {
+    const wrapper = document.createElement("span");
+    wrapper.className = "ticker-item";
+    const identity = document.createTextNode(
+      `${item.stockCode || ""} ${item.stockName || "台股"} `,
+    );
+    const price = document.createElement("b");
+    price.textContent = formatNumber(item.currentPrice);
+    const changeValue = Number(item.changePercent);
+    const change = document.createElement("b");
+    change.className = `ticker-change ${changeValue > 0 ? "up" : changeValue < 0 ? "down" : "flat"}`;
+    change.textContent = Number.isFinite(changeValue)
+      ? `${changeValue > 0 ? "▲" : changeValue < 0 ? "▼" : "•"}${Math.abs(changeValue).toFixed(2)}%`
+      : "—";
+    wrapper.append(identity, price, change);
+    return wrapper;
+  });
+  tickerTrack.replaceChildren(...nodes);
+}
+
+function renderTickerMessage(message) {
+  const nodes = [message, message].map((text) => {
+    const item = document.createElement("span");
+    item.className = "ticker-message";
+    const label = document.createElement("b");
+    label.textContent = "TWSE";
+    item.append(label, document.createTextNode(` ${text}`));
+    return item;
+  });
+  tickerTrack.replaceChildren(...nodes);
+}
+
 question.addEventListener("input", () => {
   count.textContent = `${question.value.length} / 500`;
+  question.style.height = "auto";
+  question.style.height = `${Math.min(question.scrollHeight, 220)}px`;
 });
 
 document.querySelectorAll("[data-question]").forEach((button) => {
@@ -96,6 +153,7 @@ function setLoading(active) {
   loadingPanel.hidden = !active;
   errorPanel.hidden = true;
   if (active) {
+    preflightLedger.hidden = true;
     results.hidden = true;
     const messages = [
       "正在判斷需要查詢哪些資料…",
@@ -121,6 +179,7 @@ function showError(message) {
 }
 
 function renderResult(payload) {
+  preflightLedger.hidden = true;
   answerContent.replaceChildren(...formatAnswer(payload.answer));
   document.querySelector("#disclaimer").textContent = payload.disclaimer;
   document.querySelector("#model-badge").textContent = payload.model;
