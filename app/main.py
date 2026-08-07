@@ -12,6 +12,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.agent.orchestrator import ResearchOrchestrator
 from app.api.research import router as research_router
+from app.api.session import router as session_router
+from app.auth.session import SessionManager
+from app.clients.auth import StockTrackerAuthClient
 from app.clients.gemini import GeminiInteractionsGateway
 from app.clients.news import NewsSearchClient
 from app.clients.stocktracker import StockTrackerClient
@@ -46,12 +49,22 @@ async def lifespan(app: FastAPI):
         model=settings.gemini_model,
     )
     news = NewsSearchClient(timeout_seconds=settings.request_timeout_seconds)
+    auth_client = StockTrackerAuthClient(
+        base_url=settings.stocktracker_base_url,
+        timeout_seconds=settings.request_timeout_seconds,
+    )
     app.state.orchestrator = ResearchOrchestrator(
         gateway=gateway,
         executor=ToolExecutor(stocktracker, news),
         max_steps=settings.max_agent_steps,
     )
     app.state.stocktracker = stocktracker
+    app.state.auth_client = auth_client
+    app.state.session_manager = SessionManager(
+        secret=settings.jwt_secret,
+        cookie_name=settings.session_cookie_name,
+    )
+    app.state.session_cookie_secure = settings.session_cookie_secure
     app.state.stocktracker_warmup_task = None
     app.state.market_ticker_cache = []
     app.state.market_ticker_cached_at = 0.0
@@ -65,6 +78,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     await stocktracker.close()
+    await auth_client.close()
     await news.close()
 
 
@@ -75,6 +89,7 @@ app = FastAPI(
 )
 app.add_middleware(ResearchRateLimitMiddleware, requests_per_minute=6)
 app.include_router(research_router)
+app.include_router(session_router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

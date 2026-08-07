@@ -20,6 +20,9 @@ class Settings:
     gemini_model: str
     stocktracker_base_url: str
     stocktracker_api_key: str
+    jwt_secret: str
+    session_cookie_name: str
+    session_cookie_secure: bool
     max_agent_steps: int
     request_timeout_seconds: float
 
@@ -27,10 +30,13 @@ class Settings:
     def from_environment(cls) -> "Settings":
         gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
         stocktracker_api_key = os.getenv("STOCKTRACKER_API_KEY", "").strip()
+        jwt_secret = os.getenv("JWT_SECRET", "").strip()
         if not gemini_api_key:
             raise ConfigurationError("GEMINI_API_KEY is required")
         if not stocktracker_api_key:
             raise ConfigurationError("STOCKTRACKER_API_KEY is required")
+        if len(jwt_secret) < 32:
+            raise ConfigurationError("JWT_SECRET must contain at least 32 characters")
 
         max_steps = int(os.getenv("MAX_AGENT_STEPS", "3"))
         if max_steps < 1 or max_steps > 5:
@@ -43,6 +49,14 @@ class Settings:
                 "STOCKTRACKER_BASE_URL", "http://localhost:8080"
             ).rstrip("/"),
             stocktracker_api_key=stocktracker_api_key,
+            jwt_secret=jwt_secret,
+            session_cookie_name=os.getenv(
+                "SESSION_COOKIE_NAME", "finscope_session"
+            ).strip(),
+            session_cookie_secure=os.getenv(
+                "SESSION_COOKIE_SECURE", "false"
+            ).strip().lower()
+            in {"1", "true", "yes", "on"},
             max_agent_steps=max_steps,
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "150")),
         )

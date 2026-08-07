@@ -1,8 +1,9 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.agent.orchestrator import AgentIncompleteError, ResearchOrchestrator
+from app.auth.session import MemberSession, require_session
 from app.schemas.research import ResearchRequest, ResearchResponse
 
 
@@ -11,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/research", response_model=ResearchResponse)
-async def research(payload: ResearchRequest, request: Request) -> ResearchResponse:
+async def research(
+    payload: ResearchRequest,
+    request: Request,
+    _session: MemberSession = Depends(require_session),
+) -> ResearchResponse:
     orchestrator: ResearchOrchestrator = request.app.state.orchestrator
     try:
         outcome = await orchestrator.research(payload.question)

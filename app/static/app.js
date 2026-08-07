@@ -15,8 +15,20 @@ const metricGrid = document.querySelector("#metric-grid");
 const chartGrid = document.querySelector("#chart-grid");
 const tickerTrack = document.querySelector("#ticker-track");
 const preflightLedger = document.querySelector("#preflight-ledger");
+const memberButton = document.querySelector("#member-button");
+const memberButtonLabel = document.querySelector("#member-button-label");
+const authDialog = document.querySelector("#auth-dialog");
+const memberDialog = document.querySelector("#member-dialog");
+const loginForm = document.querySelector("#login-form");
+const registerForm = document.querySelector("#register-form");
+const loginTab = document.querySelector("#login-tab");
+const registerTab = document.querySelector("#register-tab");
+const authReason = document.querySelector("#auth-reason");
+const memberWatchlist = document.querySelector("#member-watchlist");
 
 let lastQuestion = "";
+let pendingQuestion = "";
+let currentUser = null;
 let loadingTimer;
 let tickerRefreshTimer;
 
@@ -24,6 +36,7 @@ let tickerRefreshTimer;
 // This does not send a Gemini request or consume model tokens.
 void warmDataService();
 void loadMarketTicker();
+const sessionReady = loadCurrentUser();
 
 async function warmDataService() {
   try {
@@ -119,11 +132,59 @@ document.querySelector("#retry-button").addEventListener("click", () => {
   form.requestSubmit();
 });
 
+memberButton.addEventListener("click", async () => {
+  await sessionReady;
+  if (!currentUser) {
+    openAuthDialog("login", false);
+    return;
+  }
+  openMemberDialog();
+});
+
+loginTab.addEventListener("click", () => setAuthMode("login"));
+registerTab.addEventListener("click", () => setAuthMode("register"));
+
+document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelector(`#${button.dataset.closeDialog}`).close();
+  });
+});
+
+[authDialog, memberDialog].forEach((dialog) => {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+});
+
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void submitAuth("login", loginForm);
+});
+
+registerForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void submitAuth("register", registerForm);
+});
+
+document.querySelector("#logout-button").addEventListener("click", () => {
+  void logoutMember();
+});
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const value = question.value.trim();
   if (value.length < 3) return;
   lastQuestion = value;
+  await sessionReady;
+  if (!currentUser) {
+    pendingQuestion = value;
+    openAuthDialog("login", true);
+    return;
+  }
+  void runResearch(value);
+});
+
+async function runResearch(value) {
   setLoading(true);
 
   try {
@@ -133,8 +194,14 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({ question: value }),
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      setCurrentUser(null);
+      pendingQuestion = value;
+      openAuthDialog("login", true);
+      return;
+    }
     if (!response.ok) {
-      const message = payload.detail || "服務暫時無法完成研究，請稍後再試。";
+      const message = apiMessage(payload, "服務暫時無法完成研究，請稍後再試。");
       throw new Error(message);
     }
     renderResult(payload);
@@ -143,7 +210,190 @@ form.addEventListener("submit", async (event) => {
   } finally {
     setLoading(false);
   }
-});
+}
+
+async function loadCurrentUser() {
+  try {
+    const response = await fetch("/api/session/me", { cache: "no-store" });
+    if (!response.ok) {
+      setCurrentUser(null);
+      return;
+    }
+    setCurrentUser(await response.json());
+  } catch {
+    setCurrentUser(null);
+  }
+}
+
+function setCurrentUser(user) {
+  currentUser = user;
+  const avatar = memberButton.querySelector(".member-avatar");
+  if (user) {
+    memberButton.classList.add("authenticated");
+    memberButtonLabel.textContent = user.username;
+    avatar.textContent = firstCharacter(user.username, "會");
+  } else {
+    memberButton.classList.remove("authenticated");
+    memberButtonLabel.textContent = "登入";
+    avatar.textContent = "人";
+  }
+}
+
+function openAuthDialog(mode = "login", fromResearch = false) {
+  setAuthMode(mode);
+  authReason.hidden = !fromResearch;
+  document.querySelector("#login-submit-label").textContent = fromResearch
+    ? "登入並繼續研究"
+    : "登入會員";
+  document.querySelector("#register-submit-label").textContent = fromResearch
+    ? "建立會員並開始研究"
+    : "建立會員";
+  clearAuthMessages();
+  if (!authDialog.open) authDialog.showModal();
+  window.setTimeout(() => {
+    const activeForm = mode === "register" ? registerForm : loginForm;
+    activeForm.querySelector("input")?.focus();
+  }, 0);
+}
+
+function setAuthMode(mode) {
+  const registering = mode === "register";
+  loginForm.hidden = registering;
+  registerForm.hidden = !registering;
+  loginTab.classList.toggle("active", !registering);
+  registerTab.classList.toggle("active", registering);
+  loginTab.setAttribute("aria-selected", String(!registering));
+  registerTab.setAttribute("aria-selected", String(registering));
+  document.querySelector("#auth-dialog-title").textContent = registering
+    ? "建立查證終端會員"
+    : "登入查證終端";
+  clearAuthMessages();
+}
+
+async function submitAuth(mode, activeForm) {
+  const formData = new FormData(activeForm);
+  const payload = Object.fromEntries(formData.entries());
+  const submitButton = activeForm.querySelector("button[type='submit']");
+  const message = activeForm.querySelector("[data-auth-message]");
+  submitButton.disabled = true;
+  message.textContent = mode === "register" ? "正在建立會員…" : "正在驗證會員…";
+  message.classList.remove("success");
+
+  try {
+    const response = await fetch(`/api/session/${mode}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(apiMessage(data, "會員操作暫時無法完成"));
+
+    setCurrentUser(data);
+    activeForm.reset();
+    message.textContent = "登入成功";
+    message.classList.add("success");
+    authDialog.close();
+
+    const queuedQuestion = pendingQuestion;
+    pendingQuestion = "";
+    if (queuedQuestion) {
+      lastQuestion = queuedQuestion;
+      void runResearch(queuedQuestion);
+    } else {
+      openMemberDialog();
+    }
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+async function openMemberDialog() {
+  if (!currentUser) {
+    openAuthDialog("login", false);
+    return;
+  }
+  document.querySelector("#profile-username").textContent = currentUser.username;
+  document.querySelector("#profile-email").textContent = currentUser.email || "尚未設定 Email";
+  document.querySelector("#profile-avatar").textContent = firstCharacter(currentUser.username, "會");
+  memberWatchlist.innerHTML = '<p class="watchlist-state">正在讀取自選股…</p>';
+  document.querySelector("#watchlist-count").textContent = "— stocks";
+  if (!memberDialog.open) memberDialog.showModal();
+
+  try {
+    const response = await fetch("/api/member/watchlist", { cache: "no-store" });
+    const payload = await response.json().catch(() => ([]));
+    if (response.status === 401) {
+      memberDialog.close();
+      setCurrentUser(null);
+      openAuthDialog("login", false);
+      return;
+    }
+    if (!response.ok) throw new Error(apiMessage(payload, "自選股暫時無法讀取"));
+    renderMemberWatchlist(payload);
+  } catch (error) {
+    memberWatchlist.replaceChildren(createWatchlistState(error.message));
+  }
+}
+
+function renderMemberWatchlist(items) {
+  memberWatchlist.replaceChildren();
+  document.querySelector("#watchlist-count").textContent = `${items.length} stocks`;
+  if (!items.length) {
+    memberWatchlist.append(createWatchlistState("尚未加入自選股，可回到 StockTracker 建立清單。"));
+    return;
+  }
+  items.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "watchlist-item";
+    const code = document.createElement("strong");
+    code.textContent = item.stockCode || "—";
+    const market = document.createElement("span");
+    market.textContent = item.market || "TW";
+    row.append(code, market);
+    memberWatchlist.append(row);
+  });
+}
+
+function createWatchlistState(text) {
+  const state = document.createElement("p");
+  state.className = "watchlist-state";
+  state.textContent = text;
+  return state;
+}
+
+async function logoutMember() {
+  const button = document.querySelector("#logout-button");
+  button.disabled = true;
+  try {
+    await fetch("/api/session/logout", { method: "POST" });
+  } finally {
+    setCurrentUser(null);
+    memberDialog.close();
+    button.disabled = false;
+  }
+}
+
+function clearAuthMessages() {
+  document.querySelectorAll("[data-auth-message]").forEach((message) => {
+    message.textContent = "";
+    message.classList.remove("success");
+  });
+}
+
+function apiMessage(payload, fallback) {
+  if (typeof payload?.detail === "string") return payload.detail;
+  if (Array.isArray(payload?.detail) && payload.detail.length) {
+    return payload.detail.map((item) => item.msg || "輸入資料格式不正確").join("；");
+  }
+  if (typeof payload?.error === "string") return payload.error;
+  return fallback;
+}
+
+function firstCharacter(value, fallback) {
+  return Array.from(String(value || "").trim())[0] || fallback;
+}
 
 function setLoading(active) {
   submit.disabled = active;

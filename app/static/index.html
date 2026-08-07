@@ -31,9 +31,15 @@
         <span class="wordmark-chop" aria-hidden="true">印</span>
         <span>FinScope <b>TW</b></span>
       </a>
-      <div class="system-status" role="status">
-        <span class="status-dot"></span>
-        <span>Research agent online</span>
+      <div class="header-actions">
+        <div class="system-status" role="status">
+          <span class="status-dot"></span>
+          <span>Research agent online</span>
+        </div>
+        <button id="member-button" class="member-button" type="button">
+          <span class="member-avatar" aria-hidden="true">人</span>
+          <span id="member-button-label">登入</span>
+        </button>
       </div>
     </header>
 
@@ -196,6 +202,98 @@
         </div>
       </section>
     </main>
+
+    <dialog id="auth-dialog" class="member-dialog" aria-labelledby="auth-dialog-title">
+      <div class="dialog-shell auth-shell">
+        <div class="dialog-topline">
+          <div>
+            <p class="console-eyebrow">MEMBER ACCESS</p>
+            <h2 id="auth-dialog-title">登入查證終端</h2>
+          </div>
+          <button class="dialog-close" type="button" data-close-dialog="auth-dialog" aria-label="關閉">×</button>
+        </div>
+
+        <p id="auth-reason" class="auth-reason" hidden>
+          登入後會自動繼續剛才的研究問題。
+        </p>
+
+        <div class="auth-tabs" role="tablist" aria-label="會員操作">
+          <button id="login-tab" class="active" type="button" role="tab" aria-selected="true">登入</button>
+          <button id="register-tab" type="button" role="tab" aria-selected="false">建立會員</button>
+        </div>
+
+        <form id="login-form" class="auth-form">
+          <label>
+            <span>帳號或 Email</span>
+            <input name="identifier" autocomplete="username" maxlength="100" required placeholder="輸入 StockTracker 帳號" />
+          </label>
+          <label>
+            <span>密碼</span>
+            <input name="password" type="password" autocomplete="current-password" maxlength="128" required placeholder="輸入密碼" />
+          </label>
+          <p class="form-message" data-auth-message aria-live="polite"></p>
+          <button class="auth-submit" type="submit"><span id="login-submit-label">登入並繼續研究</span><span aria-hidden="true">↗</span></button>
+        </form>
+
+        <form id="register-form" class="auth-form" hidden>
+          <label>
+            <span>使用者名稱</span>
+            <input name="username" autocomplete="username" minlength="3" maxlength="50" pattern="[A-Za-z0-9_.-]+" required placeholder="英文、數字、底線、點或連字號" />
+          </label>
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" maxlength="100" required placeholder="name@example.com" />
+          </label>
+          <label>
+            <span>密碼</span>
+            <input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="至少 8 個字元" />
+          </label>
+          <p class="form-message" data-auth-message aria-live="polite"></p>
+          <button class="auth-submit" type="submit"><span id="register-submit-label">建立會員並開始研究</span><span aria-hidden="true">↗</span></button>
+        </form>
+
+        <p class="security-note">JWT 僅保存在 HttpOnly 安全 Cookie，前端程式無法讀取。</p>
+      </div>
+    </dialog>
+
+    <dialog id="member-dialog" class="member-dialog" aria-labelledby="member-dialog-title">
+      <div class="dialog-shell member-shell">
+        <div class="dialog-topline">
+          <div>
+            <p class="console-eyebrow">MEMBER DESK</p>
+            <h2 id="member-dialog-title">會員中心</h2>
+          </div>
+          <button class="dialog-close" type="button" data-close-dialog="member-dialog" aria-label="關閉">×</button>
+        </div>
+
+        <section class="profile-card" aria-label="會員資料">
+          <span id="profile-avatar" class="profile-avatar" aria-hidden="true">會</span>
+          <div>
+            <strong id="profile-username">—</strong>
+            <span id="profile-email">—</span>
+          </div>
+          <span class="verified-member"><i></i>JWT VERIFIED</span>
+        </section>
+
+        <section class="watchlist-section">
+          <div class="member-section-head">
+            <div>
+              <p class="console-eyebrow">JAVA STOCKTRACKER</p>
+              <h3>我的自選股</h3>
+            </div>
+            <span id="watchlist-count">— stocks</span>
+          </div>
+          <div id="member-watchlist" class="member-watchlist">
+            <p class="watchlist-state">正在讀取自選股…</p>
+          </div>
+        </section>
+
+        <div class="member-footer">
+          <p>會員與自選股由 Java StockTracker 管理。</p>
+          <button id="logout-button" type="button">登出</button>
+        </div>
+      </div>
+    </dialog>
 
     <footer>
       <p class="footer-note">Research assistant, not a trading system.</p>
