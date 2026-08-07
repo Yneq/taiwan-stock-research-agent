@@ -65,6 +65,9 @@ async def lifespan(app: FastAPI):
         cookie_name=settings.session_cookie_name,
     )
     app.state.session_cookie_secure = settings.session_cookie_secure
+    app.state.demo_username = settings.demo_username
+    app.state.demo_email = settings.demo_email
+    app.state.demo_password = settings.demo_password
     app.state.stocktracker_warmup_task = None
     app.state.market_ticker_cache = []
     app.state.market_ticker_cached_at = 0.0

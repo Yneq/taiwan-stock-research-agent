@@ -23,6 +23,7 @@ const loginForm = document.querySelector("#login-form");
 const registerForm = document.querySelector("#register-form");
 const loginTab = document.querySelector("#login-tab");
 const registerTab = document.querySelector("#register-tab");
+const demoLoginButton = document.querySelector("#demo-login-button");
 const authReason = document.querySelector("#auth-reason");
 const memberWatchlist = document.querySelector("#member-watchlist");
 
@@ -166,6 +167,10 @@ registerForm.addEventListener("submit", (event) => {
   void submitAuth("register", registerForm);
 });
 
+demoLoginButton.addEventListener("click", () => {
+  void submitDemoAuth();
+});
+
 document.querySelector("#logout-button").addEventListener("click", () => {
   void logoutMember();
 });
@@ -288,24 +293,43 @@ async function submitAuth(mode, activeForm) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(apiMessage(data, "會員操作暫時無法完成"));
 
-    setCurrentUser(data);
-    activeForm.reset();
-    message.textContent = "登入成功";
-    message.classList.add("success");
-    authDialog.close();
-
-    const queuedQuestion = pendingQuestion;
-    pendingQuestion = "";
-    if (queuedQuestion) {
-      lastQuestion = queuedQuestion;
-      void runResearch(queuedQuestion);
-    } else {
-      openMemberDialog();
-    }
+    finishAuthentication(data, activeForm);
   } catch (error) {
     message.textContent = error.message;
   } finally {
     submitButton.disabled = false;
+  }
+}
+
+async function submitDemoAuth() {
+  const message = document.querySelector("#demo-message");
+  demoLoginButton.disabled = true;
+  message.textContent = "正在準備 Demo 帳號…";
+
+  try {
+    const response = await fetch("/api/session/demo", { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(apiMessage(data, "Demo 帳號暫時無法登入"));
+    finishAuthentication(data);
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    demoLoginButton.disabled = false;
+  }
+}
+
+function finishAuthentication(data, activeForm = null) {
+  setCurrentUser(data);
+  activeForm?.reset();
+  authDialog.close();
+
+  const queuedQuestion = pendingQuestion;
+  pendingQuestion = "";
+  if (queuedQuestion) {
+    lastQuestion = queuedQuestion;
+    void runResearch(queuedQuestion);
+  } else {
+    openMemberDialog();
   }
 }
 
@@ -376,6 +400,7 @@ async function logoutMember() {
 }
 
 function clearAuthMessages() {
+  document.querySelector("#demo-message").textContent = "";
   document.querySelectorAll("[data-auth-message]").forEach((message) => {
     message.textContent = "";
     message.classList.remove("success");

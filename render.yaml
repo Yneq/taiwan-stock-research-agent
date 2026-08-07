@@ -19,6 +19,12 @@ services:
         value: finscope_session
       - key: SESSION_COOKIE_SECURE
         value: "true"
+      - key: DEMO_USERNAME
+        value: finscope_demo
+      - key: DEMO_EMAIL
+        value: demo@finscope.tw
+      - key: DEMO_PASSWORD
+        sync: false
       - key: MAX_AGENT_STEPS
         value: "3"
       - key: REQUEST_TIMEOUT_SECONDS

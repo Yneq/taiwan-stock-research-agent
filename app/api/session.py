@@ -48,6 +48,44 @@ async def register(
     return MemberProfile.model_validate(profile)
 
 
+@router.post("/session/demo", response_model=MemberProfile)
+async def demo_login(request: Request, response: Response) -> MemberProfile:
+    """Sign in a server-configured portfolio account without exposing credentials."""
+    username = request.app.state.demo_username
+    email = request.app.state.demo_email
+    password = request.app.state.demo_password
+    if not username or len(password) < 8:
+        raise HTTPException(status_code=503, detail="Demo 帳號尚未完成設定")
+
+    client: StockTrackerAuthClient = request.app.state.auth_client
+    try:
+        try:
+            token = await client.login(username, password)
+        except AuthServiceError as login_error:
+            if login_error.status_code != 401:
+                raise
+            try:
+                await client.register(username, email, password)
+            except AuthServiceError as register_error:
+                # A concurrent first click may have created the account already.
+                if register_error.status_code != 409:
+                    raise
+            token = await client.login(username, password)
+
+        request.app.state.session_manager.decode(token)
+        profile = await client.me(token)
+    except AuthServiceError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail="Demo 帳號暫時無法登入，請稍後再試",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Demo 登入憑證無法驗證") from exc
+
+    set_session_cookie(request, response, token)
+    return MemberProfile.model_validate(profile)
+
+
 @router.get("/session/me", response_model=MemberProfile)
 async def me(
     request: Request,

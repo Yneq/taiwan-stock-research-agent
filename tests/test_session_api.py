@@ -40,6 +40,9 @@ def build_app() -> FastAPI:
     app.state.auth_client = FakeAuthClient()
     app.state.session_manager = SessionManager(SECRET, "finscope_session")
     app.state.session_cookie_secure = False
+    app.state.demo_username = "finscope_demo"
+    app.state.demo_email = "demo@finscope.tw"
+    app.state.demo_password = "server-side-demo-password"
     app.include_router(session_router)
 
     @app.get("/protected")
@@ -92,3 +95,15 @@ def test_member_watchlist_only_exposes_market_and_stock_code() -> None:
 
     assert response.status_code == 200
     assert response.json() == [{"stockCode": "2330", "market": "twse"}]
+
+
+def test_demo_login_sets_session_without_returning_credentials() -> None:
+    client = TestClient(build_app())
+
+    response = client.post("/api/session/demo")
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "vance"
+    assert "password" not in response.text
+    assert "token" not in response.text
+    assert "HttpOnly" in response.headers["set-cookie"]

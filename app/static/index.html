@@ -223,6 +223,15 @@
         </div>
 
         <form id="login-form" class="auth-form">
+          <div class="demo-access">
+            <div>
+              <span>PORTFOLIO DEMO</span>
+              <strong>免輸入帳密，直接體驗</strong>
+            </div>
+            <button id="demo-login-button" type="button">一鍵試用 <span aria-hidden="true">↗</span></button>
+          </div>
+          <p id="demo-message" class="form-message demo-message" aria-live="polite"></p>
+          <div class="auth-divider"><span>或使用會員帳號</span></div>
           <label>
             <span>帳號或 Email</span>
             <input name="identifier" autocomplete="username" maxlength="100" required placeholder="輸入 StockTracker 帳號" />

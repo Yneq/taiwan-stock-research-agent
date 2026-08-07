@@ -99,6 +99,9 @@ STOCKTRACKER_API_KEY=...
 JWT_SECRET=the-same-secret-used-by-the-java-service
 SESSION_COOKIE_NAME=finscope_session
 SESSION_COOKIE_SECURE=false
+DEMO_USERNAME=finscope_demo
+DEMO_EMAIL=demo@finscope.tw
+DEMO_PASSWORD=a-server-side-secret
 MAX_AGENT_STEPS=3
 REQUEST_TIMEOUT_SECONDS=150
 ```
@@ -146,6 +149,7 @@ The response includes:
 |---|---|---|
 | POST | `/api/session/login` | Exchange StockTracker credentials for an HttpOnly session |
 | POST | `/api/session/register` | Create a Java-owned account and sign in |
+| POST | `/api/session/demo` | One-click portfolio login using server-only credentials |
 | GET | `/api/session/me` | Return the safe member profile |
 | POST | `/api/session/logout` | Clear the browser session |
 | GET | `/api/member/watchlist` | Return the logged-in member's Java watchlist |
@@ -200,6 +204,10 @@ The shared random service key is configured as `AGENT_API_KEY` on Java and
 Configure the same `JWT_SECRET` on both Render services. On Python, also set
 `SESSION_COOKIE_SECURE=true`; the included Blueprint already declares this
 non-secret production setting.
+
+Set `DEMO_USERNAME`, `DEMO_EMAIL`, and a strong `DEMO_PASSWORD` only on the
+Python service. The first one-click demo request creates that Java-owned member
+if necessary; the password is never shipped to browser JavaScript.
 
 The production timeout is 150 seconds so a first request can wait for the free
 Java service to wake from inactivity. Warm requests normally complete much

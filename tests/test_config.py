@@ -26,3 +26,5 @@ def test_loads_bounded_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.request_timeout_seconds == 150
     assert settings.session_cookie_name == "finscope_session"
     assert settings.session_cookie_secure is False
+    assert settings.demo_username == ""
+    assert settings.demo_email == "demo@finscope.tw"

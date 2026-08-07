@@ -23,6 +23,9 @@ class Settings:
     jwt_secret: str
     session_cookie_name: str
     session_cookie_secure: bool
+    demo_username: str
+    demo_email: str
+    demo_password: str
     max_agent_steps: int
     request_timeout_seconds: float
 
@@ -57,6 +60,9 @@ class Settings:
                 "SESSION_COOKIE_SECURE", "false"
             ).strip().lower()
             in {"1", "true", "yes", "on"},
+            demo_username=os.getenv("DEMO_USERNAME", "").strip(),
+            demo_email=os.getenv("DEMO_EMAIL", "demo@finscope.tw").strip(),
+            demo_password=os.getenv("DEMO_PASSWORD", "").strip(),
             max_agent_steps=max_steps,
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "150")),
         )

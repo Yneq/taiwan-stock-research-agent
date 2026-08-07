@@ -736,6 +736,35 @@ button { cursor: pointer; }
 }
 .auth-tabs button.active { color: var(--text-hi); background: var(--ink-3); }
 .auth-form { margin-top: 21px; display: grid; gap: 15px; }
+.demo-access {
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(46, 156, 108, 0.34);
+  border-radius: 11px;
+  background: rgba(46, 156, 108, 0.07);
+}
+.demo-access > div { display: grid; gap: 4px; }
+.demo-access > div span { color: var(--jade); font: 600 0.58rem "JetBrains Mono", monospace; letter-spacing: 0.08em; }
+.demo-access > div strong { color: var(--text-hi); font-size: 0.78rem; }
+.demo-access button {
+  flex: none;
+  padding: 9px 12px;
+  color: var(--paper);
+  border: 0;
+  border-radius: 8px;
+  background: var(--jade);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.demo-access button:hover { background: #257f59; }
+.demo-access button:disabled { cursor: wait; opacity: 0.55; }
+.demo-message { min-height: 0 !important; margin: -7px 2px 0 !important; }
+.demo-message:empty { display: none; }
+.auth-divider { display: flex; align-items: center; gap: 11px; color: var(--text-faint); font-size: 0.67rem; }
+.auth-divider::before, .auth-divider::after { content: ""; height: 1px; flex: 1; background: var(--hairline); }
 .auth-form label { display: grid; gap: 7px; }
 .auth-form label > span {
   color: var(--text-lo);
@@ -918,6 +947,7 @@ footer p { margin: 0; }
   .document-mark { top: 18px; right: 17px; }
   .loading-panel { padding: 24px; }
   .dialog-shell { padding: 22px 19px; }
+  .demo-access { align-items: flex-start; }
   .profile-card { grid-template-columns: auto minmax(0, 1fr); }
   .verified-member { grid-column: 2; }
   .member-watchlist { grid-template-columns: 1fr; }
