@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.api.session import router as session_router
 from app.auth.session import MemberSession, SessionManager, require_session
+from app.clients.auth import AuthServiceError
 
 
 SECRET = "integration-secret-that-is-at-least-32-chars"
@@ -35,9 +36,25 @@ class FakeAuthClient:
         return [{"stockCode": "2330", "market": "twse"}]
 
 
-def build_app() -> FastAPI:
+class FirstUseDemoAuthClient(FakeAuthClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.login_attempts = 0
+        self.register_calls: list[tuple[str, str, str]] = []
+
+    async def login(self, identifier: str, password: str) -> str:
+        self.login_attempts += 1
+        if self.login_attempts == 1:
+            raise AuthServiceError(401, "帳號或密碼錯誤")
+        return self.token
+
+    async def register(self, username: str, email: str, password: str) -> None:
+        self.register_calls.append((username, email, password))
+
+
+def build_app(auth_client: FakeAuthClient | None = None) -> FastAPI:
     app = FastAPI()
-    app.state.auth_client = FakeAuthClient()
+    app.state.auth_client = auth_client or FakeAuthClient()
     app.state.session_manager = SessionManager(SECRET, "finscope_session")
     app.state.session_cookie_secure = False
     app.state.demo_username = "finscope_demo"
@@ -107,3 +124,30 @@ def test_demo_login_sets_session_without_returning_credentials() -> None:
     assert "password" not in response.text
     assert "token" not in response.text
     assert "HttpOnly" in response.headers["set-cookie"]
+
+
+def test_first_demo_login_registers_java_member_then_retries_login() -> None:
+    auth_client = FirstUseDemoAuthClient()
+    client = TestClient(build_app(auth_client))
+
+    response = client.post("/api/session/demo")
+
+    assert response.status_code == 200
+    assert auth_client.login_attempts == 2
+    assert auth_client.register_calls == [
+        ("finscope_demo", "demo@finscope.tw", "server-side-demo-password")
+    ]
+    assert "password" not in response.text
+    assert "token" not in response.text
+
+
+def test_existing_demo_member_does_not_register_again() -> None:
+    auth_client = FirstUseDemoAuthClient()
+    auth_client.login_attempts = 1
+    client = TestClient(build_app(auth_client))
+
+    response = client.post("/api/session/demo")
+
+    assert response.status_code == 200
+    assert auth_client.login_attempts == 2
+    assert auth_client.register_calls == []

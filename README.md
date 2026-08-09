@@ -7,6 +7,9 @@ research tool—not a price predictor or trading-signal generator.
 The companion Java MCP Server lives in
 [Yneq/StockTracker](https://github.com/Yneq/StockTracker).
 
+For a complete architecture walkthrough, code map, testing strategy, and demo
+script, see the [Traditional Chinese interview guide](docs/INTERVIEW_GUIDE.md).
+
 ## What it demonstrates
 
 - Agentic tool selection with a bounded multi-step loop
@@ -77,7 +80,7 @@ tests/              # orchestration, configuration, and HTTP adapter tests
 
 - Python 3.12
 - A running TaiwanStockTracker service with its `/mcp` endpoint enabled
-- Gemini API key with free-tier access to Gemini 3.6 Flash
+- A Gemini API key and a function-calling model configured through `GEMINI_MODEL`
 
 ## Local setup
 
