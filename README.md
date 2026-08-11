@@ -204,6 +204,11 @@ The Java MCP Server is deployed separately. Its public URL becomes
 The shared random service key is configured as `AGENT_API_KEY` on Java and
 `STOCKTRACKER_API_KEY` on Python.
 
+For the always-on portfolio deployment, the
+[AWS Lightsail bundle](deploy/aws/README.md) runs Caddy, this FastAPI service,
+and the Java MCP Server as separate containers on one instance. Java remains on
+an internal Docker network, removing the free-tier cross-service cold start.
+
 Configure the same `JWT_SECRET` on both Render services. On Python, also set
 `SESSION_COOKIE_SECURE=true`; the included Blueprint already declares this
 non-secret production setting.

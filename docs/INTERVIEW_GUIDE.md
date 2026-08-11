@@ -178,6 +178,75 @@ mvn test
 
 **學到：** 不應在 data access layer 吞掉錯誤。API 的狀態碼也是系統契約，401 與 503 對除錯和使用者體驗有完全不同的意義。
 
+#### 實際故障鏈
+
+1. Render 的環境變數欄位只應填 JDBC URL，曾誤填成 `DB_URL=jdbc:postgresql://...`。`DriverManager` 因此收到不是 JDBC URL 的字串。
+2. 修正連線字串後，Neon 的 `users.created_at` 是 `NOT NULL`，但原本的 INSERT 沒有提供此欄位，PostgreSQL 拒絕寫入。
+3. 原本 DAO 使用 `catch (SQLException e) { e.printStackTrace(); }`，印完錯誤後正常 return。
+4. `AuthServiceImpl.register()` 不知道 insert 已失敗，Controller 便回傳 `201 註冊成功`；實際上資料庫沒有會員，接著登入自然得到 401。
+
+#### 修改一：不要吞掉 SQLException
+
+```java
+// 修改前：呼叫者收不到失敗訊號
+try {
+    ps.executeUpdate();
+} catch (SQLException e) {
+    e.printStackTrace();
+}
+
+// 修改後：保留 cause，讓 Service / Controller 能正確處理
+try (Connection conn = DBUtil.getConnection();
+     PreparedStatement ps = conn.prepareStatement(sql)) {
+    int insertedRows = ps.executeUpdate();
+    if (insertedRows != 1) {
+        throw new IllegalStateException("建立使用者失敗");
+    }
+} catch (SQLException e) {
+    throw new IllegalStateException("無法建立使用者", e);
+}
+```
+
+try-with-resources 會在成功與例外兩條路徑都關閉 `Connection`、`PreparedStatement`、`ResultSet`，避免連線資源逐漸耗盡。查詢方法也改成 DB 失敗時丟出例外；只有「查詢成功但沒有這個會員」才回傳 `null`。
+
+#### 修改二：INSERT 符合 Neon schema
+
+```java
+String sql = "insert into users(username,password,email,created_at) "
+        + "values(?,?,?,CURRENT_TIMESTAMP)";
+```
+
+這次採用 `CURRENT_TIMESTAMP` 讓 PostgreSQL 產生時間。長期更理想的做法是替 schema 設定 `created_at DEFAULT CURRENT_TIMESTAMP`，再用 migration tool 管理 Java 與正式資料庫的 schema 版本。
+
+#### 修改三：在 HTTP 層區分 401 與 503
+
+```java
+try {
+    String token = authService.login(identifier, password);
+    return ResponseEntity.ok(new LoginResponse(token));
+} catch (IllegalStateException ex) {
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(Map.of("detail", "會員資料服務暫時無法使用"));
+} catch (RuntimeException ex) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of("detail", "帳號或密碼錯誤"));
+}
+```
+
+`IllegalStateException` 本身也是 `RuntimeException`，所以必須先 catch；順序相反會永遠進入 401 分支。401 表示使用者憑證不正確，503 表示伺服器的會員資料依賴暫時不可用。這也讓 Python BFF 知道只有真正的 401 才應進入 Demo 帳號首次註冊流程。
+
+#### 修改四：環境變數 fail fast
+
+```java
+String normalized = value.trim();
+if (normalized.startsWith(key + "=")) {
+    throw new IllegalArgumentException(
+            "環境變數 " + key + " 的值不應包含 " + key + "= 前綴");
+}
+```
+
+與其等到第一次 SQL request 才出現模糊的 JDBC 錯誤，啟動時就指出 Render 設定值格式錯誤，能大幅縮短部署除錯時間。
+
 ### 3. TWSE 偶發失敗
 
 **問題：** 即使服務已啟動，上游行情 API 仍可能短暫失敗。

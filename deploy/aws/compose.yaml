@@ -1,0 +1,76 @@
+name: finscope-tw
+
+services:
+  stocktracker:
+    build:
+      context: ../../../StockTracker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DB_URL: ${DB_URL:?DB_URL is required}
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      FINMIND_TOKEN: ${FINMIND_TOKEN:?FINMIND_TOKEN is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      AGENT_API_KEY: ${AGENT_API_KEY:?AGENT_API_KEY is required}
+      STOCK_SCHEDULER_ENABLED: "false"
+      JAVA_TOOL_OPTIONS: "-Xms96m -Xmx384m -XX:MaxMetaspaceSize=160m"
+    expose:
+      - "8080"
+    networks:
+      - backend
+
+  agent:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - stocktracker
+    environment:
+      PORT: "8000"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      STOCKTRACKER_BASE_URL: http://stocktracker:8080
+      STOCKTRACKER_API_KEY: ${AGENT_API_KEY:?AGENT_API_KEY is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-finscope_session}
+      SESSION_COOKIE_SECURE: "true"
+      DEMO_USERNAME: ${DEMO_USERNAME:-finscope_demo}
+      DEMO_EMAIL: ${DEMO_EMAIL:-demo@finscope.tw}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?DEMO_PASSWORD is required}
+      MAX_AGENT_STEPS: ${MAX_AGENT_STEPS:-3}
+      REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-60}
+    expose:
+      - "8000"
+    networks:
+      - backend
+      - frontend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - agent
+    environment:
+      DOMAIN: ${DOMAIN:-vanceai.space}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - frontend
+
+networks:
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  caddy_data:
+  caddy_config:

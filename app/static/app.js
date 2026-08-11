@@ -48,10 +48,14 @@ async function warmDataService() {
     if (!response.ok) return;
 
     const payload = await response.json();
-    if (typeof payload.wake_url !== "string" || !payload.wake_url) return;
+    if (
+      typeof payload.wake_url !== "string" ||
+      !payload.wake_url.startsWith("https://")
+    ) return;
 
     // A direct browser request reliably triggers Render's free-tier wake-up
-    // while Python prepares the reusable MCP session in parallel.
+    // while Python prepares the reusable MCP session in parallel. Private
+    // Docker hostnames stay server-side and are never requested by the browser.
     void fetch(payload.wake_url, {
       method: "GET",
       mode: "no-cors",
