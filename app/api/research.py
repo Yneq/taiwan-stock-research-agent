@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.agent.orchestrator import AgentIncompleteError, ResearchOrchestrator
 from app.auth.session import MemberSession, require_session
+from app.clients.gemini import GeminiRateLimitError
 from app.schemas.research import ResearchRequest, ResearchResponse
 
 
@@ -20,6 +21,12 @@ async def research(
     orchestrator: ResearchOrchestrator = request.app.state.orchestrator
     try:
         outcome = await orchestrator.research(payload.question)
+    except GeminiRateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail="AI 免費額度正在冷卻，系統已自動重試；請稍後再送出。",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
     except AgentIncompleteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:

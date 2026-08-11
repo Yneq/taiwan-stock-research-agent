@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -46,6 +48,14 @@ class GeminiGateway(Protocol):
     ) -> ModelTurn: ...
 
 
+class GeminiRateLimitError(RuntimeError):
+    """Raised after bounded retries cannot clear a provider rate limit."""
+
+    def __init__(self, retry_after_seconds: int) -> None:
+        super().__init__("AI 免費額度暫時繁忙，請稍後再試。")
+        self.retry_after_seconds = retry_after_seconds
+
+
 class GeminiInteractionsGateway:
     """Thin adapter around Gemini's Interactions API.
 
@@ -65,10 +75,7 @@ class GeminiInteractionsGateway:
         system_instruction: str,
         tools: list[dict[str, Any]],
     ) -> ModelTurn:
-        import asyncio
-
-        interaction = await asyncio.to_thread(
-            self._client.interactions.create,
+        interaction = await self._create_with_retry(
             model=self.model,
             input=user_input,
             system_instruction=system_instruction,
@@ -83,10 +90,7 @@ class GeminiInteractionsGateway:
         system_instruction: str,
         tools: list[dict[str, Any]],
     ) -> ModelTurn:
-        import asyncio
-
-        interaction = await asyncio.to_thread(
-            self._client.interactions.create,
+        interaction = await self._create_with_retry(
             model=self.model,
             previous_interaction_id=previous_interaction_id,
             input=results,
@@ -94,6 +98,26 @@ class GeminiInteractionsGateway:
             tools=tools,
         )
         return self._to_turn(interaction)
+
+    async def _create_with_retry(self, **kwargs: Any) -> Any:
+        max_attempts = 3
+        last_retry_after = 5.0
+        for attempt in range(max_attempts):
+            try:
+                return await asyncio.to_thread(
+                    self._client.interactions.create,
+                    **kwargs,
+                )
+            except Exception as exc:
+                retry_after = _rate_limit_retry_delay(exc, attempt)
+                if retry_after is None:
+                    raise
+                last_retry_after = retry_after
+                if attempt == max_attempts - 1:
+                    raise GeminiRateLimitError(round(retry_after)) from exc
+                await asyncio.sleep(retry_after)
+
+        raise GeminiRateLimitError(round(last_retry_after))
 
     def _to_turn(self, interaction: Any) -> ModelTurn:
         calls = [
@@ -150,3 +174,20 @@ def _deduplicate_citations(citations: list[SourceCitation]) -> list[SourceCitati
         if citation.url:
             unique.setdefault(citation.url, citation)
     return list(unique.values())
+
+
+def _rate_limit_retry_delay(exc: Exception, attempt: int) -> float | None:
+    message = str(exc)
+    normalized = message.lower()
+    rate_limited = any(
+        marker in normalized
+        for marker in ("429", "quota exceeded", "rate limit", "too_many_requests")
+    )
+    if not rate_limited:
+        return None
+
+    match = re.search(r"retry in\s+([0-9]+(?:\.[0-9]+)?)s", message, re.IGNORECASE)
+    if match:
+        # A small buffer avoids retrying in the same rolling quota window.
+        return min(max(float(match.group(1)) + 0.75, 1.0), 45.0)
+    return min(5.0 * (2**attempt), 30.0)
