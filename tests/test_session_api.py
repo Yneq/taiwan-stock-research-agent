@@ -101,6 +101,28 @@ def test_protected_endpoint_requires_login_and_logout_clears_session() -> None:
     assert client.get("/protected").status_code == 401
 
 
+def test_session_status_is_null_for_anonymous_user() -> None:
+    client = TestClient(build_app())
+
+    response = client.get("/api/session/status")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_session_status_returns_logged_in_member() -> None:
+    client = TestClient(build_app())
+    client.post(
+        "/api/session/login",
+        json={"identifier": "vance", "password": "password123"},
+    )
+
+    response = client.get("/api/session/status")
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "vance"
+
+
 def test_member_watchlist_only_exposes_market_and_stock_code() -> None:
     client = TestClient(build_app())
     client.post(

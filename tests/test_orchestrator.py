@@ -4,7 +4,7 @@ from collections import deque
 
 import pytest
 
-from app.agent.orchestrator import AgentIncompleteError, ResearchOrchestrator
+from app.agent.orchestrator import ResearchOrchestrator
 from app.clients.gemini import FunctionCall, ModelTurn, SourceCitation
 from app.tools.executor import ToolExecution
 
@@ -15,6 +15,7 @@ class FakeGateway:
     def __init__(self, turns: list[ModelTurn]) -> None:
         self.turns = deque(turns)
         self.continuations: list[list[dict]] = []
+        self.continuation_tools: list[list[dict]] = []
 
     async def start(
         self, user_input: str, system_instruction: str, tools: list[dict]
@@ -34,6 +35,7 @@ class FakeGateway:
     ) -> ModelTurn:
         assert "禁止自行推測" in system_instruction
         self.continuations.append(results)
+        self.continuation_tools.append(tools)
         return self.turns.popleft()
 
 
@@ -64,6 +66,19 @@ class FakeExecutor:
             result=result,
             status="success",
             duration_ms=12,
+        )
+
+
+class FailingExecutor:
+    async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
+        return ToolExecution(
+            call_id=call_id,
+            name=name,
+            arguments=arguments,
+            result={"error": "FinMind token is unavailable"},
+            status="error",
+            duration_ms=8,
+            error="FinMind token is unavailable",
         )
 
 
@@ -138,7 +153,31 @@ async def test_returns_direct_answer_without_unnecessary_stock_tool() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stops_repeated_tool_loop() -> None:
+async def test_tool_failure_forces_a_final_limitation_answer() -> None:
+    gateway = FakeGateway(
+        [
+            turn(
+                "turn-1",
+                calls=[
+                    FunctionCall(
+                        "call-1", "get_revenue_history", {"stock_code": "2330"}
+                    )
+                ],
+            ),
+            turn("turn-2", text="資料限制\nFinMind 暫時無法取得月營收資料。"),
+        ]
+    )
+    orchestrator = ResearchOrchestrator(gateway, FailingExecutor(), max_steps=3)
+
+    outcome = await orchestrator.research("台積電最近月營收如何？")
+
+    assert outcome.traces[0].status == "error"
+    assert "FinMind" in outcome.answer
+    assert gateway.continuation_tools == [[]]
+
+
+@pytest.mark.asyncio
+async def test_stops_repeated_tool_loop_with_safe_response() -> None:
     repeated = [
         turn(
             f"turn-{index}",
@@ -149,5 +188,7 @@ async def test_stops_repeated_tool_loop() -> None:
     gateway = FakeGateway(repeated)
     orchestrator = ResearchOrchestrator(gateway, FakeExecutor(), max_steps=2)
 
-    with pytest.raises(AgentIncompleteError, match="工具呼叫上限"):
-        await orchestrator.research("一直查詢")
+    outcome = await orchestrator.research("一直查詢")
+
+    assert "安全工具呼叫上限" in outcome.answer
+    assert len(outcome.traces) == 2

@@ -223,12 +223,13 @@ async function runResearch(value) {
 
 async function loadCurrentUser() {
   try {
-    const response = await fetch("/api/session/me", { cache: "no-store" });
+    const response = await fetch("/api/session/status", { cache: "no-store" });
     if (!response.ok) {
       setCurrentUser(null);
       return;
     }
-    setCurrentUser(await response.json());
+    const user = await response.json();
+    setCurrentUser(user && typeof user === "object" ? user : null);
   } catch {
     setCurrentUser(null);
   }

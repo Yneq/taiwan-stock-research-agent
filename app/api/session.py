@@ -99,6 +99,23 @@ async def me(
     return MemberProfile.model_validate(profile)
 
 
+@router.get("/session/status", response_model=MemberProfile | None)
+async def session_status(request: Request) -> MemberProfile | None:
+    """Return the current member without logging an expected anonymous 401."""
+    manager = request.app.state.session_manager
+    token = request.cookies.get(manager.cookie_name, "").strip()
+    if not token:
+        return None
+
+    client: StockTrackerAuthClient = request.app.state.auth_client
+    try:
+        manager.decode(token)
+        profile = await client.me(token)
+    except (AuthServiceError, ValueError):
+        return None
+    return MemberProfile.model_validate(profile)
+
+
 @router.post("/session/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(request: Request, response: Response) -> None:
     manager = request.app.state.session_manager

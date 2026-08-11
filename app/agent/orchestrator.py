@@ -104,11 +104,20 @@ class ResearchOrchestrator:
                 for item in executions
             )
             citations.extend(self._citations_from_tool_results(executions))
+            # A failed data source is already a complete, meaningful result.
+            # Remove tools for the next turn so the model must explain the
+            # limitation instead of repeatedly calling the same broken tool
+            # until the bounded agent loop becomes an HTTP 502.
+            next_tools = (
+                []
+                if any(item.status != "success" for item in executions)
+                else self._tools
+            )
             turn = await self._gateway.continue_with_results(
                 previous_interaction_id=turn.id,
                 results=[item.as_function_result() for item in executions],
                 system_instruction=SYSTEM_PROMPT,
-                tools=self._tools,
+                tools=next_tools,
             )
 
         if turn.output_text.strip() and not turn.function_calls:
@@ -118,7 +127,33 @@ class ResearchOrchestrator:
                 traces=traces,
                 citations=self._to_api_citations(citations),
             )
-        raise AgentIncompleteError("Agent 已達工具呼叫上限，無法安全完成回答")
+        citations.extend(turn.citations)
+        return ResearchOutcome(
+            answer=self._bounded_fallback_answer(traces),
+            traces=traces,
+            citations=self._to_api_citations(citations),
+        )
+
+    def _bounded_fallback_answer(self, traces: list[ToolTrace]) -> str:
+        failed = [trace for trace in traces if trace.status != "success"]
+        if failed:
+            limitations = "\n".join(
+                f"- {trace.tool}：{trace.error or '資料來源暫時無法使用'}"
+                for trace in failed
+            )
+        else:
+            limitations = "- Agent 已達安全工具呼叫上限，未繼續重複查詢。"
+
+        return (
+            "摘要\n"
+            "本次研究未能取得足夠的可驗證資料，因此不提供推測性結論。\n\n"
+            "關鍵數據\n"
+            "- 暫無足夠且可核對的數據。\n\n"
+            "可能影響因素\n"
+            "- 因資料不足，本次不推測可能影響因素。\n\n"
+            "資料限制\n"
+            f"{limitations}"
+        )
 
     def _citations_from_tool_results(
         self, executions: list[ToolExecution]
