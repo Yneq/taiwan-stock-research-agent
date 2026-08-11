@@ -12,8 +12,9 @@ Caddy :80/:443  ->  FastAPI agent :8000  ->  Spring Boot StockTracker :8080
                                          Neon PostgreSQL
 ```
 
-Only Caddy publishes host ports. StockTracker remains reachable only from the
-private Docker `backend` network, while Caddy obtains and renews the public TLS
+Only Caddy publishes host ports. StockTracker has no published host port and is
+reachable by the agent through the Docker `backend` network, while still being
+able to call TWSE, FinMind, and Neon. Caddy obtains and renews the public TLS
 certificate automatically.
 
 ## Recommended instance
