@@ -10,6 +10,24 @@ The companion Java MCP Server lives in
 For a complete architecture walkthrough, code map, testing strategy, and demo
 script, see the [Traditional Chinese interview guide](docs/INTERVIEW_GUIDE.md).
 
+## Live demo
+
+[Open FinScope TW](https://vanceai.space/) and choose **One-click demo** to try
+the authenticated research workflow without creating an account.
+
+![FinScope TW research terminal](docs/images/finscope-home.jpg)
+
+The dashboard combines a live TWSE ticker, grouped research prompts, member
+authentication, and an observable agent workflow in a Taiwan-market visual
+language.
+
+![FinScope TW grounded research result with charts and tool trace](docs/images/finscope-research-result.jpg)
+
+A completed brief keeps the model answer beside deterministic market charts,
+the tools that were called, their latency, and the public sources used. This
+makes retrieval failures and unsupported claims visible instead of hiding them
+behind the final prose.
+
 ## What it demonstrates
 
 - Agentic tool selection with a bounded multi-step loop
