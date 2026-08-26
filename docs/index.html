@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="FinScope TW 實際程式碼的視覺化解說：架構、Agent 流程、安全邊界與測試證據。">
+<title>FinScope TW — 我寫了什麼？</title>
+<style>
+:root{--bg:#07110c;--surface:#0d1b14;--surface2:#13261c;--paper:#eee9dc;--ink:#ebf0ec;--muted:#96a69c;--line:#294236;--green:#58d28e;--gold:#dcb15a;--red:#eb6b57;--blue:#6ab6d5;--dark:#142019;--r:21px;--shadow:0 24px 70px rgba(0,0,0,.28)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;line-height:1.65}a{color:inherit}button{font:inherit}.wrap{width:min(1160px,calc(100% - 40px));margin:auto}
+.top{position:sticky;top:0;z-index:20;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(7,17,12,.87);backdrop-filter:blur(14px)}.top .wrap{min-height:66px;display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:10px;font-weight:900}.mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid #40604f;border-radius:50%;color:var(--gold);background:#12271c;font-family:Georgia,serif}.nav{display:flex;gap:4px}.nav a{padding:8px 11px;border-radius:99px;color:var(--muted);font-size:13px;font-weight:750;text-decoration:none}.nav a:hover{color:var(--ink);background:var(--surface2)}
+.hero{padding:90px 0 70px;background:radial-gradient(circle at 82% 14%,rgba(88,210,142,.12),transparent 30rem),radial-gradient(circle at 12% 78%,rgba(220,177,90,.09),transparent 25rem)}.kicker{display:flex;align-items:center;gap:10px;margin-bottom:22px;color:var(--gold);font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.kicker:before{content:"";width:28px;height:2px;background:var(--red)}h1,h2,h3,p{margin-top:0}h1{max-width:1080px;margin-bottom:25px;font-size:clamp(43px,6.3vw,76px);line-height:.99;letter-spacing:-.064em}h1 em{color:var(--green);font-style:normal}.lead{max-width:840px;margin-bottom:32px;color:#b4c1b9;font-size:clamp(18px,2vw,23px)}.btn{display:inline-block;margin-right:8px;padding:12px 18px;border:1px solid var(--green);border-radius:99px;color:#06110a;background:var(--green);font-weight:850;text-decoration:none}.btn.ghost{color:var(--ink);background:transparent;border-color:var(--line)}
+.status-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:52px}.status{padding:20px;border:1px solid var(--line);border-radius:17px;background:rgba(13,27,20,.78)}.status span{display:block;color:var(--muted);font-size:12px}.status strong{display:block;margin-top:8px;font-size:20px}.ok{color:var(--green)}
+section{padding:70px 0}.section-head{display:flex;align-items:end;justify-content:space-between;gap:28px;margin-bottom:28px}.label{display:block;margin-bottom:9px;color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.section-head h2{margin:0;font-size:clamp(32px,4.5vw,54px);line-height:1.06;letter-spacing:-.045em}.section-head p{max-width:530px;margin:0;color:var(--muted)}
+.meaning{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}.meaning>div{padding:30px;border-radius:var(--r)}.meaning-main{color:var(--dark);background:var(--paper)}blockquote{margin:13px 0 0;font-size:clamp(23px,3vw,36px);line-height:1.28;font-weight:820;letter-spacing:-.035em}.meaning-side{border:1px solid var(--line);background:var(--surface)}.meaning-side ul{margin:0;padding:0;list-style:none}.meaning-side li{padding:9px 0;border-bottom:1px solid var(--line);color:#b8c5bd}.meaning-side li:before{content:"✓";margin-right:9px;color:var(--green);font-weight:900}
+.arch{padding:25px;border:1px solid var(--line);border-radius:27px;background:var(--surface);box-shadow:var(--shadow)}.arch-row{display:grid;grid-template-columns:1fr 44px 1.1fr 44px 1fr;gap:8px;align-items:stretch}.node{min-height:168px;padding:21px;border:1px solid var(--line);border-radius:18px;background:var(--surface2)}.node h3{margin-bottom:7px;font-size:21px}.node p{color:var(--muted);font-size:14px}.node.python{border-color:#416653}.node.java{border-color:#65512e}.arrow{display:grid;place-items:center;color:var(--green);font-size:28px}.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:15px}.chip{padding:4px 8px;border:1px solid var(--line);border-radius:99px;color:#b8c5bd;font-size:11px;font-weight:750}.providers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px}.provider{padding:14px;border:1px dashed #3a5547;border-radius:13px;color:var(--muted);text-align:center;font-size:13px}.provider strong{display:block;color:var(--ink)}
+.flow-shell{overflow:hidden;border:1px solid var(--line);border-radius:27px;background:var(--surface);box-shadow:var(--shadow)}.flow-tabs{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line)}.flow-tab{min-height:84px;padding:13px 10px;border:0;border-right:1px solid var(--line);color:var(--muted);background:transparent;text-align:left;cursor:pointer}.flow-tab:last-child{border:0}.flow-tab b{display:block;margin-bottom:4px;color:var(--gold);font-size:11px}.flow-tab span{font-size:12px;font-weight:800}.flow-tab[aria-selected=true]{color:var(--ink);background:var(--surface2);box-shadow:inset 0 -3px var(--green)}.flow-tab:focus-visible{outline:2px solid var(--blue);outline-offset:-3px}.flow-panel{display:none;grid-template-columns:.85fr 1.15fr;gap:28px;min-height:355px;padding:31px}.flow-panel.active{display:grid;animation:show .23s ease-out}@keyframes show{from{opacity:.3;transform:translateY(4px)}}.step-no{font-size:70px;line-height:1;color:#365343;font-weight:950;letter-spacing:-.06em}.flow-panel h3{font-size:29px;letter-spacing:-.03em}.flow-panel p{color:#b1beb6}.file{display:inline-block;margin-top:14px;padding:5px 9px;border-radius:7px;color:#c8d5cc;background:#1a3024;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.evidence{padding:20px;border:1px solid var(--line);border-radius:17px;background:#09150f}.evidence small{display:block;color:var(--gold);font-weight:850;letter-spacing:.1em;text-transform:uppercase}.evidence code{display:block;margin-top:10px;color:#c2ddca;white-space:pre-wrap;font:13px/1.68 ui-monospace,SFMono-Regular,Menlo,monospace}
+.tabs{display:flex;gap:8px;margin-bottom:15px;overflow:auto}.tab{min-width:160px;padding:12px 15px;border:1px solid var(--line);border-radius:12px;color:var(--muted);background:var(--surface);font-weight:800;text-align:left;cursor:pointer}.tab[aria-selected=true]{color:#07110c;border-color:var(--green);background:var(--green)}.module-panel{display:none}.module-panel.active{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.module{min-height:205px;padding:22px;border:1px solid var(--line);border-radius:17px;background:var(--surface)}.path{color:var(--gold);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.module h3{margin:19px 0 8px;font-size:20px}.module p{color:var(--muted);font-size:14px}.why{margin-top:15px;padding-top:12px;border-top:1px solid var(--line);color:#bdc9c1;font-size:13px}
+.guard-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.guard{padding:25px;border:1px solid var(--line);border-radius:19px;background:var(--surface)}.guard h3{display:flex;align-items:center;gap:10px}.signal{width:12px;height:12px;border-radius:50%;background:var(--green);box-shadow:0 0 0 6px rgba(88,210,142,.12)}.guard.fail .signal{background:var(--red);box-shadow:0 0 0 6px rgba(235,107,87,.12)}.guard ul{margin:0;padding-left:20px;color:#afbbb3}.guard li{margin:8px 0}
+.verify{display:grid;grid-template-columns:1.1fr repeat(3,.8fr);gap:12px}.test-main,.test-card{min-height:185px;padding:23px;border-radius:19px}.test-main{color:var(--dark);background:var(--paper)}.test-card{border:1px solid var(--line);background:var(--surface)}.test-main strong,.test-card strong{display:block;margin-top:38px;font-size:38px;line-height:1;letter-spacing:-.045em}.test-main strong{color:#1b673f}.test-card strong{color:var(--green)}.test-main small,.test-card small{color:#718077}.test-groups{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.test-list{padding:22px;border:1px solid var(--line);border-radius:17px;background:var(--surface)}.test-list h3{font-size:17px}.test-list ul{columns:2;margin:0;padding-left:18px;color:var(--muted);font-size:13px}.truth{margin-top:12px;padding:18px 21px;border-left:4px solid var(--gold);background:#101e17;color:#afbbb3}.truth strong{color:var(--ink)}
+.code-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.code-card{overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--surface)}.code-title{display:flex;justify-content:space-between;padding:13px 17px;border-bottom:1px solid var(--line);color:#b9c5bd;font-size:12px}.code-title b{color:var(--gold)}pre{margin:0;padding:20px;overflow:auto;color:#c9dfd0;background:#08130d;font:12px/1.72 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.kw{color:#6bcceb}.fn{color:#78dc9f}.str{color:#e0b869}.explain{padding:17px;color:var(--muted);font-size:13px}.explain strong{color:var(--ink)}
+.script{position:relative;padding:34px;border-radius:25px;color:var(--dark);background:var(--paper);box-shadow:var(--shadow)}.script:after{content:"“";position:absolute;right:24px;top:-7px;color:rgba(19,32,25,.09);font:120px Georgia,serif}.script-meta{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}.script-meta span{padding:5px 9px;border:1px solid #ccc4b5;border-radius:99px;color:#59655e;font-size:11px;font-weight:800}.script p{position:relative;max-width:1000px;margin:0;font-size:clamp(18px,2vw,23px);line-height:1.72}.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.repo{padding:9px 12px;border:1px solid var(--line);border-radius:99px;color:#b9c5bd;text-decoration:none;font-size:12px;font-weight:800}
+footer{padding:28px 0 52px;color:#74857b;font-size:12px}.foot{display:flex;justify-content:space-between;gap:20px;padding-top:21px;border-top:1px solid var(--line)}
+@media(max-width:900px){.meaning,.flow-panel{grid-template-columns:1fr}.status-row,.verify{grid-template-columns:1fr 1fr}.arch-row{grid-template-columns:1fr}.arrow{height:34px;transform:rotate(90deg)}.providers,.module-panel.active{grid-template-columns:1fr 1fr}.flow-tabs{grid-template-columns:repeat(4,1fr)}.guard-grid,.code-grid{grid-template-columns:1fr}.section-head{align-items:start;flex-direction:column}}
+@media(max-width:620px){.wrap{width:min(100% - 24px,1160px)}.nav{display:none}.hero{padding-top:58px}.status-row,.verify,.providers,.module-panel.active,.test-groups{grid-template-columns:1fr}.flow-tabs{display:flex;overflow:auto}.flow-tab{min-width:126px}.flow-panel{padding:22px}.arch{padding:14px}.test-list ul{columns:1}.script{padding:23px}.foot{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><div class="brand"><span class="mark">F</span> FinScope TW · Code Walkthrough</div><nav class="nav"><a href="#meaning">我寫了什麼</a><a href="#architecture">架構</a><a href="#request">請求流程</a><a href="#modules">程式地圖</a><a href="#verification">驗證</a><a href="#script">講稿</a></nav></div></header>
+<main>
+<section class="hero"><div class="wrap">
+<div class="kicker">Actual repository · visual explanation</div>
+<h1>不用逐行讀 code，<br><em>看懂 FinScope TW 怎麼運作。</em></h1>
+<p class="lead">這不是泛用 AI feature 範例。這一頁直接把目前 FinScope TW 的 Python Agent、Java 股票服務、MCP tools、會員安全與 tests，轉成可以點、可以講、可以查證的系統介面。</p>
+<a class="btn" href="#request">跟著一次研究請求走</a><a class="btn ghost" href="#script">看面試講稿</a>
+<div class="status-row"><div class="status"><span>Python tests · 重新執行</span><strong class="ok">30 passed</strong></div><div class="status"><span>Java tests · 重新執行</span><strong class="ok">23 passed</strong></div><div class="status"><span>Behavioral eval cases</span><strong>15 scenarios</strong></div><div class="status"><span>Agent loop boundary</span><strong>最多 3 rounds</strong></div></div>
+</div></section>
+
+<section id="meaning"><div class="wrap">
+<div class="section-head"><div><span class="label">The answer first</span><h2>一句話：我寫的是什麼？</h2></div><p>FinScope TW 不是把問題直接丟給 Gemini。它是一個有資料來源、有工具邊界、有登入驗證、看得到研究軌跡的台股研究 Agent。</p></div>
+<div class="meaning"><div class="meaning-main"><span class="label">Project thesis</span><blockquote>我把 Java 台股資料系統變成可被 AI 呼叫的 MCP Server，再用 Python 建立會選工具、查來源、處理失敗、保留證據的研究 Agent。</blockquote></div><div class="meaning-side"><h3>使用者得到的不是「AI 猜測」</h3><ul><li>即時行情來自 TWSE MIS</li><li>月營收來自 FinMind</li><li>近期事件附公開新聞來源</li><li>畫面顯示每個 tool 與耗時</li><li>資料不足時明說限制</li><li>不預測股價、不提供買賣指令</li></ul></div></div>
+</div></section>
+
+<section id="architecture"><div class="wrap">
+<div class="section-head"><div><span class="label">System map</span><h2>兩個服務，各自負責一件事</h2></div><p>Java 保留股票與會員 domain；Python 管理 AI workflow。Gemini 能決定要呼叫哪個工具，但拿不到資料庫密碼與服務金鑰。</p></div>
+<div class="arch"><div class="arch-row">
+<article class="node"><span class="label">Interface</span><h3>Browser Dashboard</h3><p>登入、快速提問、研究摘要、價格／營收圖、tool trace、citation。</p><div class="chips"><span class="chip">HTML/CSS/JS</span><span class="chip">HttpOnly cookie</span></div></article>
+<div class="arrow">→</div>
+<article class="node python"><span class="label">Python service</span><h3>FastAPI Research Agent</h3><p>BFF（Backend for Frontend）替瀏覽器向 Java 登入，並把 Java 回傳的 JWT 收進 HttpOnly cookie；同時負責 Agent loop、新聞搜尋、MCP Client、錯誤與 rate limit。</p><div class="chips"><span class="chip">FastAPI</span><span class="chip">Gemini</span><span class="chip">MCP Client</span></div></article>
+<div class="arrow">→</div>
+<article class="node java"><span class="label">Java service</span><h3>Spring Boot StockTracker</h3><p>股票 domain、會員資料、JWT、PostgreSQL，以及可重用的行情／營收 MCP tools。</p><div class="chips"><span class="chip">Spring AI MCP</span><span class="chip">Java</span><span class="chip">PostgreSQL</span></div></article>
+</div><div class="providers"><div class="provider"><strong>Gemini Interactions API</strong>推理與工具選擇</div><div class="provider"><strong>Google News RSS</strong>近期公開事件</div><div class="provider"><strong>TWSE MIS + FinMind</strong>行情與月營收</div></div></div>
+</div></section>
+
+<section id="request"><div class="wrap">
+<div class="section-head"><div><span class="label">Trace one request</span><h2>問「台積電近期如何？」之後</h2></div><p>點選 1–7，看一次真實 research request 在程式裡如何流動。這就是不用讀完整 repository 也能理解的「正確介面」。</p></div>
+<div class="flow-shell">
+<div class="flow-tabs" role="tablist" aria-label="研究請求流程">
+<button class="flow-tab" role="tab" aria-selected="true" data-step="1"><b>01</b><span>會員驗證</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="2"><b>02</b><span>研究政策</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="3"><b>03</b><span>選擇工具</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="4"><b>04</b><span>取得資料</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="5"><b>05</b><span>回傳模型</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="6"><b>06</b><span>Fail closed</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="7"><b>07</b><span>證據畫面</span></button>
+</div>
+<article class="flow-panel active" data-panel="1"><div><div class="step-no">01</div><h3>先確認使用者，不讓匿名請求直接消耗模型。</h3><p>FastAPI 從同源 cookie 取得 Java 簽發的 JWT，驗證 signature、subject 與 expiry。瀏覽器 JavaScript 讀不到 token。</p><span class="file">app/auth/session.py · app/api/session.py</span></div><div class="evidence"><small>Actual boundary</small><code>Browser → HttpOnly + SameSite=Lax cookie
+FastAPI → jwt.decode(... require: sub, exp)
+No valid session → HTTP 401
+POST /api/research → 6 requests / minute</code></div></article>
+<article class="flow-panel" data-panel="2"><div><div class="step-no">02</div><h3>把金融回答規則寫進 system policy。</h3><p>即時價格一定要查 snapshot；營收問題才查 revenue；近期事件要查 news；不得修改工具數字、猜股票代碼或把相關性寫成因果。</p><span class="file">app/agent/orchestrator.py · SYSTEM_PROMPT</span></div><div class="evidence"><small>Policy examples</small><code>價格 → 必須 get_stock_snapshot
+營收趨勢 → get_revenue_history
+近期事件 → search_news
+輸出 → 摘要 / 關鍵數據 / 可能因素 / 資料限制</code></div></article>
+<article class="flow-panel" data-panel="3"><div><div class="step-no">03</div><h3>Gemini 只能從允許清單選工具。</h3><p>模型看得到三個 function schema 與參數限制；它不知道 X-Agent-Key、JWT secret 或資料庫連線資訊。</p><span class="file">app/tools/definitions.py · app/clients/gemini.py</span></div><div class="evidence"><small>Allowed tools</small><code>search_news(query, days 1..30, max_results 1..10)
+get_stock_snapshot(stock_code: ^[0-9]{4}$)
+get_revenue_history(stock_code, months 1..24)</code></div></article>
+<article class="flow-panel" data-panel="4"><div><div class="step-no">04</div><h3>Python 執行工具；股票資料透過 MCP 交給 Java。</h3><p>新聞由 Python 讀 Google News RSS。行情與營收透過可重用的 MCP session 呼叫 Java，並用 X-Agent-Key 保護服務。</p><span class="file">app/tools/executor.py · app/clients/stocktracker.py · StockMcpTools.java</span></div><div class="evidence"><small>Data ownership</small><code>search_news → Google News RSS
+get_stock_snapshot → MCP → Java → TWSE MIS
+get_revenue_history → MCP → Java → FinMind
+Java result → structured JSON, not prose</code></div></article>
+<article class="flow-panel" data-panel="5"><div><div class="step-no">05</div><h3>工具 JSON 回到同一個 interaction。</h3><p>Gemini 依已取得的證據決定是否需要下一個工具或完成回答。多個同輪 tool calls 會以 asyncio.gather 並行執行。</p><span class="file">ResearchOrchestrator.research()</span></div><div class="evidence"><small>Observable trace</small><code>ToolExecution {
+  name, arguments, result,
+  status, duration_ms, error
+}
+→ function_result → Gemini continuation</code></div></article>
+<article class="flow-panel" data-panel="6"><div><div class="step-no">06</div><h3>資料源壞掉時，不讓模型一直重試或補答案。</h3><p>如果 tool 失敗，下一輪移除工具，要求模型說明限制；Agent 最多三輪。沒有足夠資料時回傳 bounded fallback，而不是推測。</p><span class="file">app/agent/orchestrator.py · _bounded_fallback_answer()</span></div><div class="evidence"><small>Fail-closed behavior</small><code>any tool failed → next_tools = []
+max rounds = 3
+no verified data → 「不提供推測性結論」
+provider 429 → bounded retry + Retry-After</code></div></article>
+<article class="flow-panel" data-panel="7"><div><div class="step-no">07</div><h3>前端不只秀答案，也秀答案的來歷。</h3><p>ResearchResponse 同時包含 answer、tool calls、citations、model 與 disclaimer。前端將 deterministic data 畫成圖表，並列出每個工具與耗時。</p><span class="file">app/schemas/research.py · app/static/app.js</span></div><div class="evidence"><small>User-visible evidence</small><code>研究摘要 + 資料限制
+價格 / 月營收 dashboard
+研究軌跡：tool + arguments + duration + status
+引用來源：title + URL
+金融資訊免責聲明</code></div></article>
+</div></div></section>
+
+<section id="modules"><div class="wrap">
+<div class="section-head"><div><span class="label">Code map</span><h2>Repository 不必全讀，先看這些檔案</h2></div><p>切換 Python、Java、前端三個視角。每張卡回答「這個檔案負責什麼」，不是逐行解釋語法。</p></div>
+<div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true" data-module="python">Python Agent</button><button class="tab" role="tab" aria-selected="false" data-module="java">Java Data Service</button><button class="tab" role="tab" aria-selected="false" data-module="frontend">Frontend / Product</button></div>
+<div class="module-panel active" data-module-panel="python">
+<article class="module"><span class="path">app/agent/orchestrator.py</span><h3>Agent 的大腦與煞車</h3><p>研究政策、tool loop、並行執行、citation 去重、最多三輪與 fallback。</p><div class="why">面試重點：Agent 不是單次 prompt，而是 bounded workflow。</div></article>
+<article class="module"><span class="path">app/clients/stocktracker.py</span><h3>MCP Client 邊界</h3><p>等待 Java ready、建立並重用 session、帶 X-Agent-Key、正規化 timeout / HTTP / JSON 錯誤。</p><div class="why">面試重點：把跨服務不穩定封裝在 adapter。</div></article>
+<article class="module"><span class="path">app/api/session.py</span><h3>會員 BFF</h3><p>把 Java JWT 轉成 HttpOnly cookie，處理登入、註冊、demo account 與 watchlist。</p><div class="why">面試重點：Python 沒有複製會員資料來源。</div></article>
+</div>
+<div class="module-panel" data-module-panel="java">
+<article class="module"><span class="path">com.mcp.StockMcpTools</span><h3>AI 可呼叫的工具契約</h3><p>用 Spring AI @Tool 暴露行情與營收，回傳結構化 DTO。</p><div class="why">面試重點：tool 是 reusable capability，不綁特定模型。</div></article>
+<article class="module"><span class="path">AgentStockService</span><h3>股票 domain 正規化</h3><p>驗證四碼代號、解析 TWSE、計算漲跌幅、辨識 TWSE/TPEx、限制營收月份。</p><div class="why">面試重點：模型不處理 deterministic finance math。</div></article>
+<article class="module"><span class="path">AgentApiKeyInterceptor</span><h3>服務對服務驗證</h3><p>以 X-Agent-Key 保護 Agent/MCP 端點，並用 MessageDigest.isEqual 比對。</p><div class="why">面試重點：模型與 browser 都拿不到 service key。</div></article>
+</div>
+<div class="module-panel" data-module-panel="frontend">
+<article class="module"><span class="path">app/static/app.js</span><h3>研究操作介面</h3><p>登入後續跑 queued question、載入 ticker、送 research、呈現 charts / traces / citations。</p><div class="why">面試重點：HTML 是理解 Agent 狀態的 interface。</div></article>
+<article class="module"><span class="path">app/main.py</span><h3>應用生命週期</h3><p>依賴組裝、背景 warm-up、market ticker cache、health、static assets 與資源關閉。</p><div class="why">面試重點：解決 free-tier cold start 的實際問題。</div></article>
+<article class="module"><span class="path">ResearchResponse</span><h3>前後端證據契約</h3><p>answer 之外必帶 tool_calls、citations、model 與 disclaimer。</p><div class="why">面試重點：可觀測性是產品功能，不只是 log。</div></article>
+</div>
+</div></section>
+
+<section><div class="wrap">
+<div class="section-head"><div><span class="label">Safety and failure</span><h2>真正重要的不是 happy path</h2></div><p>這些 guardrails 是程式直接掌握的，不交給 LLM 自律。</p></div>
+<div class="guard-grid"><article class="guard"><h3><span class="signal"></span>安全邊界</h3><ul><li>研究端點需要有效會員 session</li><li>JWT 放 HttpOnly / SameSite=Lax cookie</li><li>MCP 使用獨立 X-Agent-Key</li><li>工具唯讀，沒有下單能力</li><li>股票代碼與月份有 schema / domain 驗證</li><li>公開 demo 每 IP 每分鐘最多 6 次研究</li></ul></article><article class="guard fail"><h3><span class="signal"></span>失敗處理</h3><ul><li>Gemini 429 有上限重試與 Retry-After</li><li>Java cold start 先 health readiness 再 MCP</li><li>timeout / HTTP / invalid JSON 正規化</li><li>tool 失敗後停止繼續呼叫</li><li>三輪上限避免無限 Agent loop</li><li>資料不足時回覆限制，不編造數字</li></ul></article></div>
+</div></section>
+
+<section id="verification"><div class="wrap">
+<div class="section-head"><div><span class="label">Technical evidence</span><h2>我不是說「應該可以」，我重新跑過</h2></div><p>以下是 2026-08-26 在目前本機 repository 實際執行的結果，不是示意 KPI。</p></div>
+<div class="verify"><div class="test-main"><span>Combined automated tests</span><strong>53 passed</strong><small>Python 30 + Java 23</small></div><div class="test-card"><span>Python pytest</span><strong>30</strong><small>0 failed · 0.47s</small></div><div class="test-card"><span>Java Maven</span><strong>23</strong><small>0 failures · 0 errors</small></div><div class="test-card"><span>Behavioral eval set</span><strong>15</strong><small>fixed research scenarios</small></div></div>
+<div class="test-groups"><article class="test-list"><h3>Python tests 覆蓋的行為</h3><ul><li>orchestrator loop</li><li>failed-tool fallback</li><li>Gemini retry</li><li>MCP result decoding</li><li>session / demo login</li><li>news parsing</li><li>config validation</li><li>API paths</li></ul></article><article class="test-list"><h3>Java tests 覆蓋的行為</h3><ul><li>MCP registration</li><li>stock code validation</li><li>TWSE parsing</li><li>revenue boundaries</li><li>auth status codes</li><li>password hashing</li><li>duplicate users</li><li>HTTP retry</li></ul></article></div>
+<div class="truth"><strong>刻意不放假的數字：</strong>目前沒有正式量測 coverage percentage、production p95 latency、error rate 或 revenue impact，所以這頁不會把它們包裝成成果。現階段能誠實證明的是 tests、固定 eval cases、compile check、JavaScript syntax check，以及 code 中可檢查的安全與失敗邊界。</div>
+</div></section>
+
+<section><div class="wrap">
+<div class="section-head"><div><span class="label">Representative code</span><h2>只看四段，就知道核心設計</h2></div><p>保留必要 code，但每段都先回答「它證明什麼」。</p></div>
+<div class="code-grid">
+<article class="code-card"><div class="code-title"><b>Python</b><span>orchestrator.py</span></div><pre><code>executions = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+  *(executor.<span class="fn">execute</span>(
+      call.id, call.name, call.arguments
+    ) <span class="kw">for</span> call <span class="kw">in</span> turn.function_calls)
+)
+
+next_tools = (
+  [] <span class="kw">if</span> <span class="fn">any</span>(x.status != <span class="str">"success"</span>
+     <span class="kw">for</span> x <span class="kw">in</span> executions)
+  <span class="kw">else</span> self._tools
+)</code></pre><div class="explain"><strong>證明：</strong>同一輪工具可並行；任何資料源失敗後，下一輪不再讓模型重複呼叫。</div></article>
+<article class="code-card"><div class="code-title"><b>Java</b><span>StockMcpTools.java</span></div><pre><code><span class="kw">@Tool</span>(
+  name = <span class="str">"get_stock_snapshot"</span>,
+  description = <span class="str">"取得台灣股票最新行情..."</span>
+)
+<span class="kw">public</span> StockSnapshotToolResult <span class="fn">getStockSnapshot</span>(
+    <span class="kw">@ToolParam</span> String stockCode) {
+  <span class="kw">return</span> StockSnapshotToolResult.<span class="fn">from</span>(
+      service.<span class="fn">getSnapshot</span>(stockCode));
+}</code></pre><div class="explain"><strong>證明：</strong>模型只看到穩定 tool contract；行情解析與計算仍由 Java domain service 負責。</div></article>
+<article class="code-card"><div class="code-title"><b>Session</b><span>session.py</span></div><pre><code>claims = jwt.<span class="fn">decode</span>(
+  token,
+  self._secret,
+  algorithms=[<span class="str">"HS256"</span>, <span class="str">"HS384"</span>, <span class="str">"HS512"</span>],
+  options={<span class="str">"require"</span>: [<span class="str">"sub"</span>, <span class="str">"exp"</span>]}
+)
+
+<span class="kw">if not</span> username:
+  <span class="kw">raise</span> ValueError(<span class="str">"no subject"</span>)</code></pre><div class="explain"><strong>證明：</strong>Python 不只相信 cookie 存在；它會驗證 Java 簽發 token 的內容與期限。</div></article>
+<article class="code-card"><div class="code-title"><b>Fallback</b><span>orchestrator.py</span></div><pre><code><span class="kw">return</span> (
+  <span class="str">"摘要\n"</span>
+  <span class="str">"本次研究未能取得足夠的可驗證資料，"</span>
+  <span class="str">"因此不提供推測性結論。\n\n"</span>
+  <span class="str">"資料限制\n"</span>
+  f<span class="str">"{limitations}"</span>
+)</code></pre><div class="explain"><strong>證明：</strong>Agent 的失敗輸出也有產品契約；錯誤不會被漂亮的 AI 文案掩蓋。</div></article>
+</div></div></section>
+
+<section id="script"><div class="wrap">
+<div class="section-head"><div><span class="label">Interview script</span><h2>用 90 秒說清楚這份 code</h2></div><p>先說責任邊界，再走一次 request，最後用 tests 與 fail-closed 收尾。</p></div>
+<div class="script"><div class="script-meta"><span>約 90 秒</span><span>Actual code</span><span>Architecture → evidence</span></div><p>「FinScope TW 是一個會自己選工具查資料的台股研究 Agent，但核心不是把問題直接丟給 Gemini。我把系統拆成兩個服務：Java StockTracker 繼續負責股票資料、會員、JWT 和 PostgreSQL，並用 MCP 暴露即時行情與月營收；Python FastAPI 則負責會員 BFF、Agent orchestration、新聞搜尋和研究介面。使用者提問後，程式先驗證 HttpOnly session，再把三個有 schema 限制的工具交給 Gemini 選擇。行情一定經過 Java 查 TWSE，營收查 FinMind，近期事件則附公開新聞來源。每個 tool result 會回到同一個 interaction，前端同時顯示答案、工具軌跡、耗時與引用。更重要的是，我把失敗行為也寫進系統：tool 壞掉後停止重複呼叫、最多三輪、資料不足就明說限制，不讓模型補數字。目前我重新跑過 Python 30 個與 Java 23 個 tests，全部通過；另外還有 15 個固定 eval cases。這份專案想證明的不是 AI 能寫 code，而是我能把 AI 接到真實資料、控制它的邊界，並讓結果可以被查證。」</p></div>
+<div class="links"><a class="repo" href="https://github.com/Yneq/taiwan-stock-research-agent" target="_blank" rel="noopener">Python repository ↗</a><a class="repo" href="https://github.com/Yneq/StockTracker" target="_blank" rel="noopener">Java repository ↗</a><a class="repo" href="https://vanceai.space/" target="_blank" rel="noopener">Live demo ↗</a></div>
+</div></section>
+</main>
+<footer><div class="wrap foot"><span>FinScope TW · Actual Code Walkthrough</span><span>依本機 main branch 程式與 2026-08-26 測試結果製作。</span></div></footer>
+<script>
+const flowTabs=[...document.querySelectorAll('.flow-tab')];
+const flowPanels=[...document.querySelectorAll('.flow-panel')];
+function showFlow(tab){const key=tab.dataset.step;flowTabs.forEach(x=>x.setAttribute('aria-selected',String(x===tab)));flowPanels.forEach(x=>x.classList.toggle('active',x.dataset.panel===key))}
+flowTabs.forEach((tab,index)=>{tab.addEventListener('click',()=>showFlow(tab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();let next=index;if(event.key==='ArrowRight')next=(index+1)%flowTabs.length;if(event.key==='ArrowLeft')next=(index-1+flowTabs.length)%flowTabs.length;if(event.key==='Home')next=0;if(event.key==='End')next=flowTabs.length-1;flowTabs[next].focus();showFlow(flowTabs[next])})});
+const moduleTabs=[...document.querySelectorAll('.tab[data-module]')];
+const modulePanels=[...document.querySelectorAll('[data-module-panel]')];
+moduleTabs.forEach(tab=>tab.addEventListener('click',()=>{moduleTabs.forEach(x=>x.setAttribute('aria-selected',String(x===tab)));modulePanels.forEach(x=>x.classList.toggle('active',x.dataset.modulePanel===tab.dataset.module))}));
+</script>
+</body>
+</html>
+

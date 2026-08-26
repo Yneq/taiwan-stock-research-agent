@@ -15,6 +15,10 @@ script, see the [Traditional Chinese interview guide](docs/INTERVIEW_GUIDE.md).
 [Open FinScope TW](https://vanceai.space/) and choose **One-click demo** to try
 the authenticated research workflow without creating an account.
 
+[Open the visual code walkthrough](https://yneq.github.io/taiwan-stock-research-agent/)
+to understand the real architecture, request flow, security boundaries, failure
+handling, and current test evidence without reading the repository line by line.
+
 ![FinScope TW research terminal](docs/images/finscope-home.jpg)
 
 The dashboard combines a live TWSE ticker, grouped research prompts, member
