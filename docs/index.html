@@ -34,7 +34,7 @@ footer{padding:28px 0 52px;color:#74857b;font-size:12px}.foot{display:flex;justi
 <h1>不用逐行讀 code，<br><em>看懂 FinScope TW 怎麼運作。</em></h1>
 <p class="lead">這不是泛用 AI feature 範例。這一頁直接把目前 FinScope TW 的 Python Agent、Java 股票服務、MCP tools、會員安全與 tests，轉成可以點、可以講、可以查證的系統介面。</p>
 <a class="btn" href="#request">跟著一次研究請求走</a><a class="btn ghost" href="#script">看面試講稿</a>
-<div class="status-row"><div class="status"><span>Python tests · 重新執行</span><strong class="ok">30 passed</strong></div><div class="status"><span>Java tests · 重新執行</span><strong class="ok">23 passed</strong></div><div class="status"><span>Behavioral eval cases</span><strong>15 scenarios</strong></div><div class="status"><span>Agent loop boundary</span><strong>最多 3 rounds</strong></div></div>
+<div class="status-row"><div class="status"><span>Python tests · 重新執行</span><strong class="ok">7 passed</strong></div><div class="status"><span>Java tests · 重新執行</span><strong class="ok">23 passed</strong></div><div class="status"><span>Behavioral eval cases</span><strong>15 scenarios</strong></div><div class="status"><span>Agent loop boundary</span><strong>最多 3 rounds</strong></div></div>
 </div></section>
 
 <section id="meaning"><div class="wrap">
@@ -117,7 +117,7 @@ provider 429 → bounded retry + Retry-After</code></div></article>
 
 <section id="verification"><div class="wrap">
 <div class="section-head"><div><span class="label">Technical evidence</span><h2>我不是說「應該可以」，我重新跑過</h2></div><p>以下是 2026-08-26 在目前本機 repository 實際執行的結果，不是示意 KPI。</p></div>
-<div class="verify"><div class="test-main"><span>Combined automated tests</span><strong>53 passed</strong><small>Python 30 + Java 23</small></div><div class="test-card"><span>Python pytest</span><strong>30</strong><small>0 failed · 0.47s</small></div><div class="test-card"><span>Java Maven</span><strong>23</strong><small>0 failures · 0 errors</small></div><div class="test-card"><span>Behavioral eval set</span><strong>15</strong><small>fixed research scenarios</small></div></div>
+<div class="verify"><div class="test-main"><span>Combined automated tests</span><strong>30 passed</strong><small>Python 7 + Java 23</small></div><div class="test-card"><span>Python pytest</span><strong>7</strong><small>0 failed · 0.10s</small></div><div class="test-card"><span>Java Maven</span><strong>23</strong><small>0 failures · 0 errors</small></div><div class="test-card"><span>Behavioral eval set</span><strong>15</strong><small>fixed research scenarios</small></div></div>
 <div class="test-groups"><article class="test-list"><h3>Python tests 覆蓋的行為</h3><ul><li>orchestrator loop</li><li>failed-tool fallback</li><li>Gemini retry</li><li>MCP result decoding</li><li>session / demo login</li><li>news parsing</li><li>config validation</li><li>API paths</li></ul></article><article class="test-list"><h3>Java tests 覆蓋的行為</h3><ul><li>MCP registration</li><li>stock code validation</li><li>TWSE parsing</li><li>revenue boundaries</li><li>auth status codes</li><li>password hashing</li><li>duplicate users</li><li>HTTP retry</li></ul></article></div>
 <div class="truth"><strong>刻意不放假的數字：</strong>目前沒有正式量測 coverage percentage、production p95 latency、error rate 或 revenue impact，所以這頁不會把它們包裝成成果。現階段能誠實證明的是 tests、固定 eval cases、compile check、JavaScript syntax check，以及 code 中可檢查的安全與失敗邊界。</div>
 </div></section>
@@ -165,7 +165,7 @@ next_tools = (
 
 <section id="script"><div class="wrap">
 <div class="section-head"><div><span class="label">Interview script</span><h2>用 90 秒說清楚這份 code</h2></div><p>先說責任邊界，再走一次 request，最後用 tests 與 fail-closed 收尾。</p></div>
-<div class="script"><div class="script-meta"><span>約 90 秒</span><span>Actual code</span><span>Architecture → evidence</span></div><p>「FinScope TW 是一個會自己選工具查資料的台股研究 Agent，但核心不是把問題直接丟給 Gemini。我把系統拆成兩個服務：Java StockTracker 繼續負責股票資料、會員、JWT 和 PostgreSQL，並用 MCP 暴露即時行情與月營收；Python FastAPI 則負責會員 BFF、Agent orchestration、新聞搜尋和研究介面。使用者提問後，程式先驗證 HttpOnly session，再把三個有 schema 限制的工具交給 Gemini 選擇。行情一定經過 Java 查 TWSE，營收查 FinMind，近期事件則附公開新聞來源。每個 tool result 會回到同一個 interaction，前端同時顯示答案、工具軌跡、耗時與引用。更重要的是，我把失敗行為也寫進系統：tool 壞掉後停止重複呼叫、最多三輪、資料不足就明說限制，不讓模型補數字。目前我重新跑過 Python 30 個與 Java 23 個 tests，全部通過；另外還有 15 個固定 eval cases。這份專案想證明的不是 AI 能寫 code，而是我能把 AI 接到真實資料、控制它的邊界，並讓結果可以被查證。」</p></div>
+<div class="script"><div class="script-meta"><span>約 90 秒</span><span>Actual code</span><span>Architecture → evidence</span></div><p>「FinScope TW 是一個會自己選工具查資料的台股研究 Agent，但核心不是把問題直接丟給 Gemini。我把系統拆成兩個服務：Java StockTracker 繼續負責股票資料、會員、JWT 和 PostgreSQL，並用 MCP 暴露即時行情與月營收；Python FastAPI 則負責會員 BFF、Agent orchestration、新聞搜尋和研究介面。使用者提問後，程式先驗證 HttpOnly session，再把三個有 schema 限制的工具交給 Gemini 選擇。行情一定經過 Java 查 TWSE，營收查 FinMind，近期事件則附公開新聞來源。每個 tool result 會回到同一個 interaction，前端同時顯示答案、工具軌跡、耗時與引用。更重要的是，我把失敗行為也寫進系統：tool 壞掉後停止重複呼叫、最多三輪、資料不足就明說限制，不讓模型補數字。目前我重新跑過 Python 7 個與 Java 23 個 tests，全部通過；另外還有 15 個固定 eval cases。這份專案想證明的不是 AI 能寫 code，而是我能把 AI 接到真實資料、控制它的邊界，並讓結果可以被查證。」</p></div>
 <div class="links"><a class="repo" href="https://github.com/Yneq/taiwan-stock-research-agent" target="_blank" rel="noopener">Python repository ↗</a><a class="repo" href="https://github.com/Yneq/StockTracker" target="_blank" rel="noopener">Java repository ↗</a><a class="repo" href="https://vanceai.space/" target="_blank" rel="noopener">Live demo ↗</a></div>
 </div></section>
 </main>
@@ -181,4 +181,3 @@ moduleTabs.forEach(tab=>tab.addEventListener('click',()=>{moduleTabs.forEach(x=>
 </script>
 </body>
 </html>
-
