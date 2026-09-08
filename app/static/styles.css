@@ -963,3 +963,14 @@ footer p { margin: 0; }
     transition-duration: 0.01ms !important;
   }
 }
+#research-timing {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid #b9b3a4;
+  border-radius: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+#research-timing summary { cursor: pointer; font-weight: 700; }
+#research-timing p { font-size: 0.85rem; opacity: 0.8; }
+#research-timing li { font-variant-numeric: tabular-nums; }

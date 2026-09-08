@@ -30,6 +30,19 @@ def build_gateway(interactions: FakeInteractions) -> GeminiInteractionsGateway:
 
 
 @pytest.mark.asyncio
+async def test_long_rate_limit_returns_without_sleeping(monkeypatch):
+    interactions = FakeInteractions(0)
+    def fail(**kwargs):
+        raise RuntimeError("429 retry in 40s")
+    interactions.create = fail
+    async def unexpected_sleep(seconds):
+        raise AssertionError("Long cooldown must not keep user waiting")
+    monkeypatch.setattr(gemini_module.asyncio, "sleep", unexpected_sleep)
+    with pytest.raises(GeminiRateLimitError):
+        await build_gateway(interactions).start("問題", "規則", [])
+
+
+@pytest.mark.asyncio
 async def test_retries_provider_rate_limit_then_returns_answer(monkeypatch) -> None:
     interactions = FakeInteractions(failures=1)
     gateway = build_gateway(interactions)

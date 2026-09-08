@@ -199,9 +199,13 @@ async function runResearch(value) {
   try {
     const response = await fetch("/api/research", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Accept": "application/x-ndjson" },
       body: JSON.stringify({ question: value }),
     });
+    if (response.ok && response.headers.get("content-type")?.includes("application/x-ndjson")) {
+      await readResearchProgress(response);
+      return;
+    }
     const payload = await response.json().catch(() => ({}));
     if (response.status === 401) {
       setCurrentUser(null);
@@ -425,6 +429,45 @@ function firstCharacter(value, fallback) {
   return Array.from(String(value || "").trim())[0] || fallback;
 }
 
+async function readResearchProgress(response) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let complete = false;
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      buffer += decoder.decode(value, {stream: !done});
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === "error") throw new Error(event.detail);
+        if (event.type === "result") {
+          renderResult(event.data);
+          complete = true;
+        }
+        if (event.type === "progress") {
+          const seconds = (event.elapsed_ms / 1000).toFixed(1);
+          const status = {started:"開始", completed:"完成", error:"失敗", retry:"等待重試"}[event.status] || event.status;
+          const duration = event.duration_ms == null ? "" : ` · 耗時 ${(event.duration_ms / 1000).toFixed(1)} 秒`;
+          const wait = event.wait_seconds == null ? "" : ` · 等待 ${event.wait_seconds} 秒`;
+          const row = document.createElement("li");
+          row.textContent = `${seconds}s · ${event.stage} · ${status}${duration}${wait}`;
+          document.querySelector("#research-timing-list").append(row);
+          loadingTitle.textContent = `${event.stage}：${status}${wait}`;
+        }
+      }
+      if (done) break;
+    }
+    if (!complete) throw new Error("研究連線中斷，請重試；已收到的階段紀錄保留於下方。");
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
 function setLoading(active) {
   submit.disabled = active;
   document.querySelectorAll("[data-question]").forEach((button) => {
@@ -435,17 +478,16 @@ function setLoading(active) {
   if (active) {
     preflightLedger.hidden = true;
     results.hidden = true;
-    const messages = [
-      "正在判斷需要查詢哪些資料…",
-      "正在核對即時行情與公開來源…",
-      "正在整理事實、事件與資料限制…",
-    ];
-    let index = 0;
-    loadingTitle.textContent = messages[index];
-    loadingTimer = window.setInterval(() => {
-      index = Math.min(index + 1, messages.length - 1);
-      loadingTitle.textContent = messages[index];
-    }, 4500);
+    loadingTitle.textContent = "正在連線，等待研究服務回報…";
+    let timing = document.querySelector("#research-timing");
+    if (!timing) {
+      timing = document.createElement("details");
+      timing.id = "research-timing";
+      timing.open = true;
+      timing.innerHTML = '<summary>研究階段與耗時</summary><p>由服務實際回報。平行查詢與重試有重疊，耗時不可直接相加；Gemini 內建搜尋包含在 Gemini 時間內。</p><ol id="research-timing-list"></ol>';
+      loadingPanel.after(timing);
+    }
+    document.querySelector("#research-timing-list").replaceChildren();
     loadingPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   } else {
     window.clearInterval(loadingTimer);

@@ -6,6 +6,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 import httpx
+from app.progress import measured
 
 
 class NewsSearchError(RuntimeError):
@@ -29,6 +30,7 @@ class NewsSearchClient:
         if self._owns_client:
             await self._client.aclose()
 
+    @measured("新聞來源查詢")
     async def search(
         self,
         query: str,

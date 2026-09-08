@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from app.progress import measured, stage, emit
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -99,8 +100,10 @@ class GeminiInteractionsGateway:
         )
         return self._to_turn(interaction)
 
+    @measured("Gemini（含內建搜尋與重試）")
     async def _create_with_retry(self, **kwargs: Any) -> Any:
         max_attempts = 3
+        remaining_wait = 15.0
         last_retry_after = 5.0
         for attempt in range(max_attempts):
             try:
@@ -113,9 +116,12 @@ class GeminiInteractionsGateway:
                 if retry_after is None:
                     raise
                 last_retry_after = retry_after
-                if attempt == max_attempts - 1:
+                if attempt == max_attempts - 1 or retry_after > remaining_wait:
                     raise GeminiRateLimitError(round(retry_after)) from exc
-                await asyncio.sleep(retry_after)
+                remaining_wait -= retry_after
+                emit(stage="Gemini 限流", status="retry", wait_seconds=retry_after)
+                async with stage("限流等待"):
+                    await asyncio.sleep(retry_after)
 
         raise GeminiRateLimitError(round(last_retry_after))
 

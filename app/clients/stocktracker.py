@@ -7,6 +7,7 @@ from contextlib import AsyncExitStack
 from typing import Any
 
 import httpx
+from app.progress import measured
 
 
 logger = logging.getLogger(__name__)
@@ -52,11 +53,13 @@ class StockTrackerClient:
             await self._readiness_client.aclose()
             self._readiness_client = None
 
+    @measured("Java 行情查詢（含連線準備）")
     async def get_snapshot(self, stock_code: str) -> dict[str, Any]:
         return await self._call_tool(
             "get_stock_snapshot", {"stockCode": stock_code}
         )
 
+    @measured("Java 營收查詢（含連線準備）")
     async def get_revenue(self, stock_code: str, months: int) -> dict[str, Any]:
         return await self._call_tool(
             "get_revenue_history",
