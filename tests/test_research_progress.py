@@ -17,6 +17,9 @@ async def test_stream_reports_before_result_and_retains_json_contract():
     class Orchestrator:
         model = "test"
 
+        def model_for(self, question):
+            return self.model
+
         @measured("Gemini")
         async def research(self, question):
             await release.wait()
@@ -43,6 +46,9 @@ async def test_disconnecting_cancels_research():
 
     class Orchestrator:
         model = "test"
+
+        def model_for(self, question):
+            return self.model
 
         async def research(self, question):
             try:

@@ -38,7 +38,8 @@ async def research(
                     async with asyncio.timeout(180):
                         outcome = await orchestrator.research(payload.question)
                     response = ResearchResponse(answer=outcome.answer, tool_calls=outcome.traces,
-                                                citations=outcome.citations, model=orchestrator.model)
+                                                citations=outcome.citations,
+                                                model=orchestrator.model_for(payload.question))
                     report({"stage": "研究總耗時", "status": "completed", "duration_ms": round((time.perf_counter()-started)*1000)})
                     queue.put_nowait({"type": "result", "data": response.model_dump()})
                 except GeminiRateLimitError:
@@ -90,5 +91,5 @@ async def research(
         answer=outcome.answer,
         tool_calls=outcome.traces,
         citations=outcome.citations,
-        model=orchestrator.model,
+        model=orchestrator.model_for(payload.question),
     )

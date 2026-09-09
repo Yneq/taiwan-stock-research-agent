@@ -53,6 +53,12 @@ class ResearchOrchestrator:
     def model(self) -> str:
         return self._gateway.model
 
+    def model_for(self, question: str) -> str:
+        """Return the engine that actually produced this answer."""
+        if self._simple_quote_code(question):
+            return "StockTracker · deterministic"
+        return self.model
+
     async def research(self, question: str) -> ResearchOutcome:
         stock_code = self._simple_quote_code(question)
         if stock_code:

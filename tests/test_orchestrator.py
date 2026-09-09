@@ -112,6 +112,7 @@ async def test_simple_quote_with_code_bypasses_gemini() -> None:
 
     outcome = await orchestrator.research("聯發科 2454 今天股價如何？相較昨收漲跌多少？")
 
+    assert orchestrator.model_for("2454股價") == "StockTracker · deterministic"
     assert len(outcome.traces) == 1
     assert outcome.traces[0].tool == "get_stock_snapshot"
     assert "1120" in outcome.answer
@@ -125,6 +126,7 @@ async def test_news_question_still_uses_gemini() -> None:
 
     outcome = await orchestrator.research("台積電 2330 今天股價為什麼上漲？有哪些新聞？")
 
+    assert orchestrator.model_for("台積電 2330 今天股價為什麼上漲？有哪些新聞？") == "test-model"
     assert outcome.answer == "近期新聞摘要"
 
 
