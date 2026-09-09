@@ -39,6 +39,13 @@ class FakeGateway:
         return self.turns.popleft()
 
 
+class GatewayMustNotRun:
+    model = "test-model"
+
+    async def start(self, *args, **kwargs):
+        raise AssertionError("Simple quote must bypass Gemini")
+
+
 class FakeExecutor:
     async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
         if name == "search_news":
@@ -97,6 +104,28 @@ def turn(
         citations=citations or [],
         search_queries=queries or [],
     )
+
+
+@pytest.mark.asyncio
+async def test_simple_quote_with_code_bypasses_gemini() -> None:
+    orchestrator = ResearchOrchestrator(GatewayMustNotRun(), FakeExecutor())
+
+    outcome = await orchestrator.research("聯發科 2454 今天股價如何？相較昨收漲跌多少？")
+
+    assert len(outcome.traces) == 1
+    assert outcome.traces[0].tool == "get_stock_snapshot"
+    assert "1120" in outcome.answer
+    assert "未額外搜尋新聞" in outcome.answer
+
+
+@pytest.mark.asyncio
+async def test_news_question_still_uses_gemini() -> None:
+    gateway = FakeGateway([turn("turn-1", text="近期新聞摘要")])
+    orchestrator = ResearchOrchestrator(gateway, FakeExecutor())
+
+    outcome = await orchestrator.research("台積電 2330 今天股價為什麼上漲？有哪些新聞？")
+
+    assert outcome.answer == "近期新聞摘要"
 
 
 @pytest.mark.asyncio

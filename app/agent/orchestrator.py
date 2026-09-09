@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
 
 from app.clients.gemini import GeminiGateway, SourceCitation
 from app.schemas.research import Citation, ToolTrace
 from app.tools.definitions import build_tools
 from app.tools.executor import ToolExecution, ToolExecutor
+from app.progress import stage
 
 
 SYSTEM_PROMPT = """
@@ -52,6 +54,32 @@ class ResearchOrchestrator:
         return self._gateway.model
 
     async def research(self, question: str) -> ResearchOutcome:
+        stock_code = self._simple_quote_code(question)
+        if stock_code:
+            async with stage("純行情快速路徑"):
+                execution = await self._executor.execute(
+                    "fast-quote", "get_stock_snapshot", {"stock_code": stock_code}
+                )
+            trace = ToolTrace(
+                tool=execution.name,
+                arguments=execution.arguments,
+                status=execution.status,
+                duration_ms=execution.duration_ms,
+                error=execution.error,
+                data=execution.result if execution.status == "success" else None,
+            )
+            if execution.status == "success":
+                return ResearchOutcome(
+                    answer=self._quote_answer(execution.result),
+                    traces=[trace],
+                    citations=[],
+                )
+            return ResearchOutcome(
+                answer=self._bounded_fallback_answer([trace]),
+                traces=[trace],
+                citations=[],
+            )
+
         turn = await self._gateway.start(
             user_input=question,
             system_instruction=SYSTEM_PROMPT,
@@ -132,6 +160,43 @@ class ResearchOrchestrator:
             answer=self._bounded_fallback_answer(traces),
             traces=traces,
             citations=self._to_api_citations(citations),
+        )
+
+    @staticmethod
+    def _simple_quote_code(question: str) -> str | None:
+        codes = re.findall(r"(?<!\d)(\d{4})(?!\d)", question)
+        if len(set(codes)) != 1:
+            return None
+        quote_terms = ("股價", "成交價", "行情", "漲跌", "昨收", "開盤", "今天", "今日", "現在", "目前")
+        research_terms = ("新聞", "事件", "營收", "基本面", "比較", "為什麼", "原因", "展望", "趨勢", "完整研究")
+        if not any(term in question for term in quote_terms):
+            return None
+        if any(term in question for term in research_terms):
+            return None
+        return codes[0]
+
+    @staticmethod
+    def _quote_answer(data: dict) -> str:
+        def value(name: str, fallback="—"):
+            result = data.get(name)
+            return fallback if result is None or result == "" else result
+
+        change = data.get("change")
+        percent = data.get("changePercent")
+        direction = "上漲" if isinstance(change, (int, float)) and change > 0 else "下跌" if isinstance(change, (int, float)) and change < 0 else "持平"
+        sign = "+" if isinstance(percent, (int, float)) and percent > 0 else ""
+        return (
+            f"摘要\n{value('stockName', '股票')}（{value('stockCode')}）目前成交價為 {value('currentPrice')} {value('currency', 'TWD')}，"
+            f"相較昨收{direction}，漲跌幅 {sign}{value('changePercent')}%。\n\n"
+            "關鍵數據\n"
+            f"- 成交價：{value('currentPrice')} {value('currency', 'TWD')}\n"
+            f"- 開盤價：{value('openPrice')} {value('currency', 'TWD')}\n"
+            f"- 昨收價：{value('previousClose')} {value('currency', 'TWD')}\n"
+            f"- 漲跌金額：{value('change')} {value('currency', 'TWD')}\n"
+            f"- 漲跌幅：{sign}{value('changePercent')}%\n"
+            f"- 資料時間：{value('quoteTime')}（來源：{value('source')}）\n\n"
+            "可能影響因素\n- 此問題僅查詢行情，未額外搜尋新聞或推測價格原因。\n\n"
+            "資料限制\n- 即時行情可能因資料來源更新頻率而有短暫延遲。"
         )
 
     def _bounded_fallback_answer(self, traces: list[ToolTrace]) -> str:

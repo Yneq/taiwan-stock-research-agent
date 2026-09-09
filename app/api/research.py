@@ -45,6 +45,8 @@ async def research(
                     queue.put_nowait({"type": "error", "detail": "AI 額度繁忙，自動重試仍未成功，請稍後再試。"})
                 except TimeoutError:
                     queue.put_nowait({"type": "error", "detail": "研究已超過 180 秒，請參考階段耗時後重試。"})
+                except AgentIncompleteError as exc:
+                    queue.put_nowait({"type": "error", "detail": str(exc)})
                 except Exception:
                     logger.exception("Streaming research failed")
                     queue.put_nowait({"type": "error", "detail": "研究未完成，請稍後重試。"})

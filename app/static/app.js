@@ -474,8 +474,8 @@ function setLoading(active) {
     button.disabled = active;
   });
   loadingPanel.hidden = !active;
-  errorPanel.hidden = true;
   if (active) {
+    errorPanel.hidden = true;
     preflightLedger.hidden = true;
     results.hidden = true;
     loadingTitle.textContent = "正在連線，等待研究服務回報…";
