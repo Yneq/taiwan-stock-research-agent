@@ -229,3 +229,22 @@ async def test_planned_tools_run_concurrently() -> None:
     await orchestrator.research("整理台積電 2330 股價、營收與新聞")
 
     assert executor.max_active == 3
+
+
+@pytest.mark.parametrize("question,tool,code", [
+    ("聯發科今天相較昨收漲跌多少？", "get_stock_snapshot", "2454"),
+    ("台積電最近六個月營收", "get_revenue_history", "2330"),
+])
+def test_known_company_name_keeps_data_retrieval(question, tool, code):
+    calls = ResearchOrchestrator._plan_research(question)
+    assert any(name == tool and args["stock_code"] == code for _, name, args in calls)
+
+
+@pytest.mark.asyncio
+async def test_quote_and_messages_does_not_skip_news():
+    gateway = FakeGateway([turn("one", text="行情與消息")])
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
+    outcome = await orchestrator.research("2454 今天股價和重要消息")
+    assert [trace.tool for trace in outcome.traces] == ["get_stock_snapshot", "search_news"]
+    assert len(gateway.starts) == 1
