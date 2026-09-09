@@ -34,30 +34,30 @@ footer{padding:28px 0 52px;color:#74857b;font-size:12px}.foot{display:flex;justi
 <h1>不用逐行讀 code，<br><em>看懂 FinScope TW 怎麼運作。</em></h1>
 <p class="lead">這不是泛用 AI feature 範例。這一頁直接把目前 FinScope TW 的 Python Agent、Java 股票服務、MCP tools、會員安全與 tests，轉成可以點、可以講、可以查證的系統介面。</p>
 <a class="btn" href="#request">跟著一次研究請求走</a><a class="btn ghost" href="#script">看面試講稿</a>
-<div class="status-row"><div class="status"><span>Python tests · 重新執行</span><strong class="ok">7 passed</strong></div><div class="status"><span>Java tests · 重新執行</span><strong class="ok">23 passed</strong></div><div class="status"><span>Behavioral eval cases</span><strong>15 scenarios</strong></div><div class="status"><span>Agent loop boundary</span><strong>最多 3 rounds</strong></div></div>
+<div class="status-row"><div class="status"><span>Python tests · 重新執行</span><strong class="ok">38 passed</strong></div><div class="status"><span>Java tests · 重新執行</span><strong class="ok">23 passed</strong></div><div class="status"><span>Behavioral eval cases</span><strong>15 scenarios</strong></div><div class="status"><span>Gemini boundary</span><strong>最多 1 call</strong></div></div>
 </div></section>
 
 <section id="meaning"><div class="wrap">
 <div class="section-head"><div><span class="label">The answer first</span><h2>一句話：我寫的是什麼？</h2></div><p>FinScope TW 不是把問題直接丟給 Gemini。它是一個有資料來源、有工具邊界、有登入驗證、看得到研究軌跡的台股研究 Agent。</p></div>
-<div class="meaning"><div class="meaning-main"><span class="label">Project thesis</span><blockquote>我把 Java 台股資料系統變成可被 AI 呼叫的 MCP Server，再用 Python 建立會選工具、查來源、處理失敗、保留證據的研究 Agent。</blockquote></div><div class="meaning-side"><h3>使用者得到的不是「AI 猜測」</h3><ul><li>即時行情來自 TWSE MIS</li><li>月營收來自 FinMind</li><li>近期事件附公開新聞來源</li><li>畫面顯示每個 tool 與耗時</li><li>資料不足時明說限制</li><li>不預測股價、不提供買賣指令</li></ul></div></div>
+<div class="meaning"><div class="meaning-main"><span class="label">Project thesis</span><blockquote>我把 Java 台股資料系統變成可重用的 MCP Server，再由 Python 先規劃並平行查證資料，最後只讓 Gemini 整理一次。</blockquote></div><div class="meaning-side"><h3>使用者得到的不是「AI 猜測」</h3><ul><li>即時行情來自 TWSE MIS</li><li>月營收來自 FinMind</li><li>近期事件附公開新聞來源</li><li>畫面顯示每個 tool 與耗時</li><li>資料不足時明說限制</li><li>不預測股價、不提供買賣指令</li></ul></div></div>
 </div></section>
 
 <section id="architecture"><div class="wrap">
-<div class="section-head"><div><span class="label">System map</span><h2>兩個服務，各自負責一件事</h2></div><p>Java 保留股票與會員 domain；Python 管理 AI workflow。Gemini 能決定要呼叫哪個工具，但拿不到資料庫密碼與服務金鑰。</p></div>
+<div class="section-head"><div><span class="label">System map</span><h2>兩個服務，各自負責一件事</h2></div><p>Java 保留股票與會員 domain；Python 規劃並平行執行資料查詢。Gemini 只接收查證後的 JSON，拿不到工具、資料庫密碼或服務金鑰。</p></div>
 <div class="arch"><div class="arch-row">
 <article class="node"><span class="label">Interface</span><h3>Browser Dashboard</h3><p>登入、快速提問、研究摘要、價格／營收圖、tool trace、citation。</p><div class="chips"><span class="chip">HTML/CSS/JS</span><span class="chip">HttpOnly cookie</span></div></article>
 <div class="arrow">→</div>
-<article class="node python"><span class="label">Python service</span><h3>FastAPI Research Agent</h3><p>BFF（Backend for Frontend）替瀏覽器向 Java 登入，並把 Java 回傳的 JWT 收進 HttpOnly cookie；同時負責 Agent loop、新聞搜尋、MCP Client、錯誤與 rate limit。</p><div class="chips"><span class="chip">FastAPI</span><span class="chip">Gemini</span><span class="chip">MCP Client</span></div></article>
+<article class="node python"><span class="label">Python service</span><h3>FastAPI Research Agent</h3><p>BFF（Backend for Frontend）替瀏覽器向 Java 登入，並把 Java 回傳的 JWT 收進 HttpOnly cookie；同時負責 deterministic planner、平行查詢、MCP Client、錯誤與 rate limit。</p><div class="chips"><span class="chip">FastAPI</span><span class="chip">Gemini</span><span class="chip">MCP Client</span></div></article>
 <div class="arrow">→</div>
 <article class="node java"><span class="label">Java service</span><h3>Spring Boot StockTracker</h3><p>股票 domain、會員資料、JWT、PostgreSQL，以及可重用的行情／營收 MCP tools。</p><div class="chips"><span class="chip">Spring AI MCP</span><span class="chip">Java</span><span class="chip">PostgreSQL</span></div></article>
-</div><div class="providers"><div class="provider"><strong>Gemini Interactions API</strong>推理與工具選擇</div><div class="provider"><strong>Google News RSS</strong>近期公開事件</div><div class="provider"><strong>TWSE MIS + FinMind</strong>行情與月營收</div></div></div>
+</div><div class="providers"><div class="provider"><strong>Gemini Interactions API</strong>一次最終整理</div><div class="provider"><strong>Google News RSS</strong>近期公開事件</div><div class="provider"><strong>TWSE MIS + FinMind</strong>行情與月營收</div></div></div>
 </div></section>
 
 <section id="request"><div class="wrap">
 <div class="section-head"><div><span class="label">Trace one request</span><h2>問「台積電近期如何？」之後</h2></div><p>點選 1–7，看一次真實 research request 在程式裡如何流動。這就是不用讀完整 repository 也能理解的「正確介面」。</p></div>
 <div class="flow-shell">
 <div class="flow-tabs" role="tablist" aria-label="研究請求流程">
-<button class="flow-tab" role="tab" aria-selected="true" data-step="1"><b>01</b><span>會員驗證</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="2"><b>02</b><span>研究政策</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="3"><b>03</b><span>選擇工具</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="4"><b>04</b><span>取得資料</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="5"><b>05</b><span>回傳模型</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="6"><b>06</b><span>Fail closed</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="7"><b>07</b><span>證據畫面</span></button>
+<button class="flow-tab" role="tab" aria-selected="true" data-step="1"><b>01</b><span>會員驗證</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="2"><b>02</b><span>研究政策</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="3"><b>03</b><span>規劃查詢</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="4"><b>04</b><span>平行取證</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="5"><b>05</b><span>單次整理</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="6"><b>06</b><span>Fail closed</span></button><button class="flow-tab" role="tab" aria-selected="false" data-step="7"><b>07</b><span>證據畫面</span></button>
 </div>
 <article class="flow-panel active" data-panel="1"><div><div class="step-no">01</div><h3>先確認使用者，不讓匿名請求直接消耗模型。</h3><p>FastAPI 從同源 cookie 取得 Java 簽發的 JWT，驗證 signature、subject 與 expiry。瀏覽器 JavaScript 讀不到 token。</p><span class="file">app/auth/session.py · app/api/session.py</span></div><div class="evidence"><small>Actual boundary</small><code>Browser → HttpOnly + SameSite=Lax cookie
 FastAPI → jwt.decode(... require: sub, exp)
@@ -67,20 +67,20 @@ POST /api/research → 6 requests / minute</code></div></article>
 營收趨勢 → get_revenue_history
 近期事件 → search_news
 輸出 → 摘要 / 關鍵數據 / 可能因素 / 資料限制</code></div></article>
-<article class="flow-panel" data-panel="3"><div><div class="step-no">03</div><h3>Gemini 只能從允許清單選工具。</h3><p>模型看得到三個 function schema 與參數限制；它不知道 X-Agent-Key、JWT secret 或資料庫連線資訊。</p><span class="file">app/tools/definitions.py · app/clients/gemini.py</span></div><div class="evidence"><small>Allowed tools</small><code>search_news(query, days 1..30, max_results 1..10)
+<article class="flow-panel" data-panel="3"><div><div class="step-no">03</div><h3>Python 依問題規劃唯讀查詢。</h3><p>程式從股票代碼與股價、營收、新聞等意圖規劃固定工具；Gemini 此時尚未呼叫，也不知道 X-Agent-Key、JWT secret 或資料庫連線資訊。</p><span class="file">app/agent/orchestrator.py · _plan_research()</span></div><div class="evidence"><small>Allowed queries</small><code>search_news(query, days 1..30, max_results 1..10)
 get_stock_snapshot(stock_code: ^[0-9]{4}$)
 get_revenue_history(stock_code, months 1..24)</code></div></article>
-<article class="flow-panel" data-panel="4"><div><div class="step-no">04</div><h3>Python 執行工具；股票資料透過 MCP 交給 Java。</h3><p>新聞由 Python 讀 Google News RSS。行情與營收透過可重用的 MCP session 呼叫 Java，並用 X-Agent-Key 保護服務。</p><span class="file">app/tools/executor.py · app/clients/stocktracker.py · StockMcpTools.java</span></div><div class="evidence"><small>Data ownership</small><code>search_news → Google News RSS
+<article class="flow-panel" data-panel="4"><div><div class="step-no">04</div><h3>獨立資料源同時查；股票資料透過 MCP 交給 Java。</h3><p>新聞由 Python 讀 Google News RSS。行情與營收透過可重用的 MCP session 呼叫 Java，並由 asyncio.gather 平行等待。</p><span class="file">app/tools/executor.py · app/clients/stocktracker.py · StockMcpTools.java</span></div><div class="evidence"><small>Data ownership</small><code>search_news → Google News RSS
 get_stock_snapshot → MCP → Java → TWSE MIS
 get_revenue_history → MCP → Java → FinMind
 Java result → structured JSON, not prose</code></div></article>
-<article class="flow-panel" data-panel="5"><div><div class="step-no">05</div><h3>工具 JSON 回到同一個 interaction。</h3><p>Gemini 依已取得的證據決定是否需要下一個工具或完成回答。多個同輪 tool calls 會以 asyncio.gather 並行執行。</p><span class="file">ResearchOrchestrator.research()</span></div><div class="evidence"><small>Observable trace</small><code>ToolExecution {
+<article class="flow-panel" data-panel="5"><div><div class="step-no">05</div><h3>查證 JSON 一次交給 Gemini 整理。</h3><p>所有工具完成後才呼叫 Gemini，而且不提供 function tools，因此不會進入第二輪工具選擇。</p><span class="file">ResearchOrchestrator.research()</span></div><div class="evidence"><small>Observable trace</small><code>ToolExecution {
   name, arguments, result,
   status, duration_ms, error
 }
-→ function_result → Gemini continuation</code></div></article>
-<article class="flow-panel" data-panel="6"><div><div class="step-no">06</div><h3>資料源壞掉時，不讓模型一直重試或補答案。</h3><p>如果 tool 失敗，下一輪移除工具，要求模型說明限制；Agent 最多三輪。沒有足夠資料時回傳 bounded fallback，而不是推測。</p><span class="file">app/agent/orchestrator.py · _bounded_fallback_answer()</span></div><div class="evidence"><small>Fail-closed behavior</small><code>any tool failed → next_tools = []
-max rounds = 3
+→ verified JSON → Gemini start(tools=[])</code></div></article>
+<article class="flow-panel" data-panel="6"><div><div class="step-no">06</div><h3>資料源壞掉時，不重複查詢或補答案。</h3><p>工具錯誤會連同狀態一次交給 Gemini 說明限制；模型沒有工具權限，也不會進入 Agent 重試迴圈。</p><span class="file">app/agent/orchestrator.py · _synthesis_input()</span></div><div class="evidence"><small>Fail-closed behavior</small><code>tool failed → error included in verified JSON
+Gemini calls = 1
 no verified data → 「不提供推測性結論」
 provider 429 → bounded retry + Retry-After</code></div></article>
 <article class="flow-panel" data-panel="7"><div><div class="step-no">07</div><h3>前端不只秀答案，也秀答案的來歷。</h3><p>ResearchResponse 同時包含 answer、tool calls、citations、model 與 disclaimer。前端將 deterministic data 畫成圖表，並列出每個工具與耗時。</p><span class="file">app/schemas/research.py · app/static/app.js</span></div><div class="evidence"><small>User-visible evidence</small><code>研究摘要 + 資料限制
@@ -94,7 +94,7 @@ provider 429 → bounded retry + Retry-After</code></div></article>
 <div class="section-head"><div><span class="label">Code map</span><h2>Repository 不必全讀，先看這些檔案</h2></div><p>切換 Python、Java、前端三個視角。每張卡回答「這個檔案負責什麼」，不是逐行解釋語法。</p></div>
 <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true" data-module="python">Python Agent</button><button class="tab" role="tab" aria-selected="false" data-module="java">Java Data Service</button><button class="tab" role="tab" aria-selected="false" data-module="frontend">Frontend / Product</button></div>
 <div class="module-panel active" data-module-panel="python">
-<article class="module"><span class="path">app/agent/orchestrator.py</span><h3>Agent 的大腦與煞車</h3><p>研究政策、tool loop、並行執行、citation 去重、最多三輪與 fallback。</p><div class="why">面試重點：Agent 不是單次 prompt，而是 bounded workflow。</div></article>
+<article class="module"><span class="path">app/agent/orchestrator.py</span><h3>Agent 的大腦與煞車</h3><p>研究政策、deterministic planner、平行執行、citation 去重與單次 Gemini 整理。</p><div class="why">面試重點：把可驗證資料流程留在程式，只讓模型負責最後表達。</div></article>
 <article class="module"><span class="path">app/clients/stocktracker.py</span><h3>MCP Client 邊界</h3><p>等待 Java ready、建立並重用 session、帶 X-Agent-Key、正規化 timeout / HTTP / JSON 錯誤。</p><div class="why">面試重點：把跨服務不穩定封裝在 adapter。</div></article>
 <article class="module"><span class="path">app/api/session.py</span><h3>會員 BFF</h3><p>把 Java JWT 轉成 HttpOnly cookie，處理登入、註冊、demo account 與 watchlist。</p><div class="why">面試重點：Python 沒有複製會員資料來源。</div></article>
 </div>
@@ -112,30 +112,29 @@ provider 429 → bounded retry + Retry-After</code></div></article>
 
 <section><div class="wrap">
 <div class="section-head"><div><span class="label">Safety and failure</span><h2>真正重要的不是 happy path</h2></div><p>這些 guardrails 是程式直接掌握的，不交給 LLM 自律。</p></div>
-<div class="guard-grid"><article class="guard"><h3><span class="signal"></span>安全邊界</h3><ul><li>研究端點需要有效會員 session</li><li>JWT 放 HttpOnly / SameSite=Lax cookie</li><li>MCP 使用獨立 X-Agent-Key</li><li>工具唯讀，沒有下單能力</li><li>股票代碼與月份有 schema / domain 驗證</li><li>公開 demo 每 IP 每分鐘最多 6 次研究</li></ul></article><article class="guard fail"><h3><span class="signal"></span>失敗處理</h3><ul><li>Gemini 429 有上限重試與 Retry-After</li><li>Java cold start 先 health readiness 再 MCP</li><li>timeout / HTTP / invalid JSON 正規化</li><li>tool 失敗後停止繼續呼叫</li><li>三輪上限避免無限 Agent loop</li><li>資料不足時回覆限制，不編造數字</li></ul></article></div>
+<div class="guard-grid"><article class="guard"><h3><span class="signal"></span>安全邊界</h3><ul><li>研究端點需要有效會員 session</li><li>JWT 放 HttpOnly / SameSite=Lax cookie</li><li>MCP 使用獨立 X-Agent-Key</li><li>工具唯讀，沒有下單能力</li><li>股票代碼與月份有 schema / domain 驗證</li><li>公開 demo 每 IP 每分鐘最多 6 次研究</li></ul></article><article class="guard fail"><h3><span class="signal"></span>失敗處理</h3><ul><li>Gemini 429 有上限重試與 Retry-After</li><li>Java cold start 先 health readiness 再 MCP</li><li>timeout / HTTP / invalid JSON 正規化</li><li>工具失敗狀態會進入最終限制說明</li><li>單次 Gemini 邊界避免無限 Agent loop</li><li>資料不足時回覆限制，不編造數字</li></ul></article></div>
 </div></section>
 
 <section id="verification"><div class="wrap">
 <div class="section-head"><div><span class="label">Technical evidence</span><h2>我不是說「應該可以」，我重新跑過</h2></div><p>以下是 2026-08-26 在目前本機 repository 實際執行的結果，不是示意 KPI。</p></div>
-<div class="verify"><div class="test-main"><span>Combined automated tests</span><strong>30 passed</strong><small>Python 7 + Java 23</small></div><div class="test-card"><span>Python pytest</span><strong>7</strong><small>0 failed · 0.10s</small></div><div class="test-card"><span>Java Maven</span><strong>23</strong><small>0 failures · 0 errors</small></div><div class="test-card"><span>Behavioral eval set</span><strong>15</strong><small>fixed research scenarios</small></div></div>
-<div class="test-groups"><article class="test-list"><h3>Python tests 覆蓋的行為</h3><ul><li>orchestrator loop</li><li>failed-tool fallback</li><li>Gemini retry</li><li>MCP result decoding</li><li>session / demo login</li><li>news parsing</li><li>config validation</li><li>API paths</li></ul></article><article class="test-list"><h3>Java tests 覆蓋的行為</h3><ul><li>MCP registration</li><li>stock code validation</li><li>TWSE parsing</li><li>revenue boundaries</li><li>auth status codes</li><li>password hashing</li><li>duplicate users</li><li>HTTP retry</li></ul></article></div>
+<div class="verify"><div class="test-main"><span>Combined automated tests</span><strong>61 passed</strong><small>Python 38 + Java 23</small></div><div class="test-card"><span>Python pytest</span><strong>38</strong><small>0 failed · 0.42s</small></div><div class="test-card"><span>Java Maven</span><strong>23</strong><small>0 failures · 0 errors</small></div><div class="test-card"><span>Behavioral eval set</span><strong>15</strong><small>fixed research scenarios</small></div></div>
+<div class="test-groups"><article class="test-list"><h3>Python tests 覆蓋的行為</h3><ul><li>deterministic planner</li><li>parallel retrieval</li><li>single Gemini call</li><li>Gemini retry</li><li>MCP reconnect / decoding</li><li>session / demo login</li><li>news parsing</li><li>API paths</li></ul></article><article class="test-list"><h3>Java tests 覆蓋的行為</h3><ul><li>MCP registration</li><li>stock code validation</li><li>TWSE parsing</li><li>revenue boundaries</li><li>auth status codes</li><li>password hashing</li><li>duplicate users</li><li>HTTP retry</li></ul></article></div>
 <div class="truth"><strong>刻意不放假的數字：</strong>目前沒有正式量測 coverage percentage、production p95 latency、error rate 或 revenue impact，所以這頁不會把它們包裝成成果。現階段能誠實證明的是 tests、固定 eval cases、compile check、JavaScript syntax check，以及 code 中可檢查的安全與失敗邊界。</div>
 </div></section>
 
 <section><div class="wrap">
 <div class="section-head"><div><span class="label">Representative code</span><h2>只看四段，就知道核心設計</h2></div><p>保留必要 code，但每段都先回答「它證明什麼」。</p></div>
 <div class="code-grid">
-<article class="code-card"><div class="code-title"><b>Python</b><span>orchestrator.py</span></div><pre><code>executions = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
-  *(executor.<span class="fn">execute</span>(
-      call.id, call.name, call.arguments
-    ) <span class="kw">for</span> call <span class="kw">in</span> turn.function_calls)
+<article class="code-card"><div class="code-title"><b>Python</b><span>orchestrator.py</span></div><pre><code>planned = self.<span class="fn">_plan_research</span>(question)
+executions = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+  *(executor.<span class="fn">execute</span>(*call)
+    <span class="kw">for</span> call <span class="kw">in</span> planned)
 )
 
-next_tools = (
-  [] <span class="kw">if</span> <span class="fn">any</span>(x.status != <span class="str">"success"</span>
-     <span class="kw">for</span> x <span class="kw">in</span> executions)
-  <span class="kw">else</span> self._tools
-)</code></pre><div class="explain"><strong>證明：</strong>同一輪工具可並行；任何資料源失敗後，下一輪不再讓模型重複呼叫。</div></article>
+turn = <span class="kw">await</span> gateway.<span class="fn">start</span>(
+  user_input=self.<span class="fn">_synthesis_input</span>(question, executions),
+  tools=[]
+)</code></pre><div class="explain"><strong>證明：</strong>可驗證資料先平行取得；Gemini 最後只整理一次，而且沒有工具權限。</div></article>
 <article class="code-card"><div class="code-title"><b>Java</b><span>StockMcpTools.java</span></div><pre><code><span class="kw">@Tool</span>(
   name = <span class="str">"get_stock_snapshot"</span>,
   description = <span class="str">"取得台灣股票最新行情..."</span>
@@ -165,11 +164,11 @@ next_tools = (
 
 <section id="script"><div class="wrap">
 <div class="section-head"><div><span class="label">Interview script</span><h2>用 90 秒說清楚這份 code</h2></div><p>先說責任邊界，再走一次 request，最後用 tests 與 fail-closed 收尾。</p></div>
-<div class="script"><div class="script-meta"><span>約 90 秒</span><span>Actual code</span><span>Architecture → evidence</span></div><p>「FinScope TW 是一個會自己選工具查資料的台股研究 Agent，但核心不是把問題直接丟給 Gemini。我把系統拆成兩個服務：Java StockTracker 繼續負責股票資料、會員、JWT 和 PostgreSQL，並用 MCP 暴露即時行情與月營收；Python FastAPI 則負責會員 BFF、Agent orchestration、新聞搜尋和研究介面。使用者提問後，程式先驗證 HttpOnly session，再把三個有 schema 限制的工具交給 Gemini 選擇。行情一定經過 Java 查 TWSE，營收查 FinMind，近期事件則附公開新聞來源。每個 tool result 會回到同一個 interaction，前端同時顯示答案、工具軌跡、耗時與引用。更重要的是，我把失敗行為也寫進系統：tool 壞掉後停止重複呼叫、最多三輪、資料不足就明說限制，不讓模型補數字。目前我重新跑過 Python 7 個與 Java 23 個 tests，全部通過；另外還有 15 個固定 eval cases。這份專案想證明的不是 AI 能寫 code，而是我能把 AI 接到真實資料、控制它的邊界，並讓結果可以被查證。」</p></div>
+<div class="script"><div class="script-meta"><span>約 90 秒</span><span>Actual code</span><span>Architecture → evidence</span></div><p>「FinScope TW 是一個有真實資料與證據軌跡的台股研究 Agent，但核心不是把所有決策丟給 Gemini。我把系統拆成兩個服務：Java StockTracker 負責股票資料、會員、JWT 和 PostgreSQL，並用 MCP 暴露即時行情與月營收；Python FastAPI 負責會員 BFF、研究規劃、新聞搜尋和介面。使用者提問後，程式先驗證 HttpOnly session，再依股票代碼與問題意圖規劃唯讀查詢。行情、營收與新聞可以平行取得，全部完成後才把查證 JSON 一次交給 Gemini 整理，而且不提供 tools，所以不會反覆 Agent 對話。單純行情甚至完全略過 Gemini。前端會顯示答案、工具軌跡、分段耗時與引用；資料源失敗也會進入限制說明，不讓模型補數字。目前 Python 38 個與 Java 23 個 tests 全部通過，另有 15 個固定 eval cases。這份專案證明的不是 AI 能寫 code，而是我能控制資料、效能與模型邊界，讓結果可以被查證。」</p></div>
 <div class="links"><a class="repo" href="https://github.com/Yneq/taiwan-stock-research-agent" target="_blank" rel="noopener">Python repository ↗</a><a class="repo" href="https://github.com/Yneq/StockTracker" target="_blank" rel="noopener">Java repository ↗</a><a class="repo" href="https://vanceai.space/" target="_blank" rel="noopener">Live demo ↗</a></div>
 </div></section>
 </main>
-<footer><div class="wrap foot"><span>FinScope TW · Actual Code Walkthrough</span><span>依本機 main branch 程式與 2026-08-26 測試結果製作。</span></div></footer>
+<footer><div class="wrap foot"><span>FinScope TW · Actual Code Walkthrough</span><span>依本機 main branch 程式與 2026-09-10 測試結果製作。</span></div></footer>
 <script>
 const flowTabs=[...document.querySelectorAll('.flow-tab')];
 const flowPanels=[...document.querySelectorAll('.flow-panel')];

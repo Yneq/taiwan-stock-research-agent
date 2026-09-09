@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 
 import pytest
@@ -14,16 +15,15 @@ class FakeGateway:
 
     def __init__(self, turns: list[ModelTurn]) -> None:
         self.turns = deque(turns)
-        self.continuations: list[list[dict]] = []
-        self.continuation_tools: list[list[dict]] = []
+        self.starts: list[tuple[str, list[dict]]] = []
 
     async def start(
         self, user_input: str, system_instruction: str, tools: list[dict]
     ) -> ModelTurn:
         assert "不提供買賣建議" in system_instruction
         assert user_input
-        assert any(tool.get("name") == "get_stock_snapshot" for tool in tools)
-        assert any(tool.get("name") == "search_news" for tool in tools)
+        assert tools == []
+        self.starts.append((user_input, tools))
         return self.turns.popleft()
 
     async def continue_with_results(
@@ -33,10 +33,7 @@ class FakeGateway:
         system_instruction: str,
         tools: list[dict],
     ) -> ModelTurn:
-        assert "禁止自行推測" in system_instruction
-        self.continuations.append(results)
-        self.continuation_tools.append(tools)
-        return self.turns.popleft()
+        raise AssertionError("One-pass research must not continue a Gemini turn")
 
 
 class GatewayMustNotRun:
@@ -47,7 +44,11 @@ class GatewayMustNotRun:
 
 
 class FakeExecutor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict]] = []
+
     async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
+        self.calls.append((name, arguments))
         if name == "search_news":
             result = {
                 "query": arguments["query"],
@@ -60,9 +61,15 @@ class FakeExecutor:
                     }
                 ],
             }
+        elif name == "get_revenue_history":
+            result = {
+                "stockCode": arguments["stock_code"],
+                "months": arguments.get("months", 12),
+                "items": [{"yearMonth": "2026-07", "revenue": 100}],
+            }
         else:
             result = {
-                "stockCode": "2330",
+                "stockCode": arguments["stock_code"],
                 "currentPrice": 1120,
                 "changePercent": 1.36,
             }
@@ -122,104 +129,103 @@ async def test_simple_quote_with_code_bypasses_gemini() -> None:
 @pytest.mark.asyncio
 async def test_news_question_still_uses_gemini() -> None:
     gateway = FakeGateway([turn("turn-1", text="近期新聞摘要")])
-    orchestrator = ResearchOrchestrator(gateway, FakeExecutor())
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
 
     outcome = await orchestrator.research("台積電 2330 今天股價為什麼上漲？有哪些新聞？")
 
     assert orchestrator.model_for("台積電 2330 今天股價為什麼上漲？有哪些新聞？") == "test-model"
     assert outcome.answer == "近期新聞摘要"
+    assert [name for name, _ in executor.calls] == ["get_stock_snapshot", "search_news"]
+    assert len(gateway.starts) == 1
+    assert outcome.citations[0].url == "https://example.com/news"
 
 
 @pytest.mark.asyncio
-async def test_executes_tool_and_returns_grounded_answer() -> None:
-    gateway = FakeGateway(
-        [
-            turn(
-                "turn-1",
-                calls=[
-                    FunctionCall(
-                        "call-1", "get_stock_snapshot", {"stock_code": "2330"}
-                    ),
-                    FunctionCall(
-                        "call-2",
-                        "search_news",
-                        {"query": "台積電 近期新聞", "days": 7},
-                    ),
-                ],
-            ),
-            turn(
-                "turn-2",
-                text="摘要\n台積電目前成交價為 1120 元。",
-            ),
-        ]
+async def test_full_research_prefetches_all_data_before_one_gemini_call() -> None:
+    gateway = FakeGateway([turn("turn-1", text="摘要\n已完成完整研究。")])
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
+
+    outcome = await orchestrator.research(
+        "整理台積電 2330 今天的股價、最近三個月營收與近期重要新聞。"
     )
-    orchestrator = ResearchOrchestrator(gateway, FakeExecutor(), max_steps=3)
 
-    outcome = await orchestrator.research("台積電今天股價如何？")
-
-    assert "1120" in outcome.answer
     assert [trace.tool for trace in outcome.traces] == [
         "get_stock_snapshot",
+        "get_revenue_history",
         "search_news",
     ]
-    assert outcome.traces[0].data == {
-        "stockCode": "2330",
-        "currentPrice": 1120,
-        "changePercent": 1.36,
-    }
-    assert outcome.traces[1].data is None
+    assert executor.calls[1][1]["months"] == 3
+    assert len(gateway.starts) == 1
+    synthesis_input, tools = gateway.starts[0]
+    assert tools == []
+    assert '"get_stock_snapshot"' in synthesis_input
+    assert '"get_revenue_history"' in synthesis_input
+    assert '"search_news"' in synthesis_input
     assert outcome.citations[0].url == "https://example.com/news"
-    assert gateway.continuations[0][0]["type"] == "function_result"
 
 
 @pytest.mark.asyncio
 async def test_returns_direct_answer_without_unnecessary_stock_tool() -> None:
     gateway = FakeGateway([turn("turn-1", text="本系統不提供買賣建議。")])
-    orchestrator = ResearchOrchestrator(gateway, FakeExecutor())
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
 
     outcome = await orchestrator.research("你可以直接告訴我該買哪一檔嗎？")
 
     assert outcome.traces == []
+    assert executor.calls == []
+    assert len(gateway.starts) == 1
     assert "不提供買賣建議" in outcome.answer
 
 
 @pytest.mark.asyncio
 async def test_tool_failure_forces_a_final_limitation_answer() -> None:
-    gateway = FakeGateway(
-        [
-            turn(
-                "turn-1",
-                calls=[
-                    FunctionCall(
-                        "call-1", "get_revenue_history", {"stock_code": "2330"}
-                    )
-                ],
-            ),
-            turn("turn-2", text="資料限制\nFinMind 暫時無法取得月營收資料。"),
-        ]
-    )
+    gateway = FakeGateway([turn("turn-1", text="資料限制\nFinMind 暫時無法取得月營收資料。")])
     orchestrator = ResearchOrchestrator(gateway, FailingExecutor(), max_steps=3)
 
-    outcome = await orchestrator.research("台積電最近月營收如何？")
+    outcome = await orchestrator.research("台積電 2330 最近月營收如何？")
 
     assert outcome.traces[0].status == "error"
     assert "FinMind" in outcome.answer
-    assert gateway.continuation_tools == [[]]
+    assert "FinMind token is unavailable" in gateway.starts[0][0]
+    assert len(gateway.starts) == 1
 
 
 @pytest.mark.asyncio
-async def test_stops_repeated_tool_loop_with_safe_response() -> None:
-    repeated = [
-        turn(
-            f"turn-{index}",
-            calls=[FunctionCall(f"call-{index}", "get_stock_snapshot", {"stock_code": "2330"})],
-        )
-        for index in range(1, 4)
-    ]
-    gateway = FakeGateway(repeated)
-    orchestrator = ResearchOrchestrator(gateway, FakeExecutor(), max_steps=2)
+async def test_comparison_fetches_both_quotes_before_one_gemini_call() -> None:
+    gateway = FakeGateway([turn("turn-1", text="比較完成")])
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
 
-    outcome = await orchestrator.research("一直查詢")
+    outcome = await orchestrator.research("比較 2330 與 2454 今天的股價表現")
 
-    assert "安全工具呼叫上限" in outcome.answer
-    assert len(outcome.traces) == 2
+    assert [trace.arguments["stock_code"] for trace in outcome.traces] == ["2330", "2454"]
+    assert len(gateway.starts) == 1
+
+
+@pytest.mark.asyncio
+async def test_planned_tools_run_concurrently() -> None:
+    class ConcurrentExecutor(FakeExecutor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.active = 0
+            self.max_active = 0
+
+        async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            await asyncio.sleep(0)
+            try:
+                return await super().execute(call_id, name, arguments)
+            finally:
+                self.active -= 1
+
+    gateway = FakeGateway([turn("turn-1", text="完成")])
+    executor = ConcurrentExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
+
+    await orchestrator.research("整理台積電 2330 股價、營收與新聞")
+
+    assert executor.max_active == 3

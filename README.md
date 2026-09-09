@@ -34,8 +34,8 @@ behind the final prose.
 
 ## What it demonstrates
 
-- Agentic tool selection with a bounded multi-step loop
-- Gemini Interactions API function calling
+- Deterministic research planning with parallel data retrieval
+- A single Gemini synthesis call after evidence collection
 - Free, keyless current-news search with structured citations
 - Python MCP Client calling a separate Java/Spring Boot MCP Server
 - Java-owned member accounts bridged through a FastAPI BFF with HttpOnly JWT cookies
@@ -48,20 +48,20 @@ behind the final prose.
 Browser
    │ same-origin UI + HttpOnly session cookie
    ▼
-FastAPI research service ───────► Gemini Interactions API
+FastAPI research service ── verified JSON ─► Gemini Interactions API (once)
    │
-   ├── member BFF + Bearer JWT ─► TaiwanStockTracker auth/watchlist APIs
-   ├── current-news search ─────► Google News RSS
+   ├── member BFF + Bearer JWT ────────────► TaiwanStockTracker auth/watchlist APIs
+   ├── parallel current-news search ───────► Google News RSS
    │
-   └── MCP + X-Agent-Key ───────► TaiwanStockTracker (Spring Boot)
+   └── parallel MCP + X-Agent-Key ─────────► TaiwanStockTracker (Spring Boot)
                                       ├─ TWSE MIS
                                       ├─ FinMind
                                       └─ Neon PostgreSQL
 ```
 
-Gemini receives function declarations but never receives database credentials.
-The Python service executes approved read-only tools through the Model Context
-Protocol and sends only their JSON results back to the model.
+Gemini never receives database credentials or tool access. The Python service
+plans and executes approved read-only queries first, then sends only their JSON
+results to Gemini for one final synthesis call.
 
 TaiwanStockTracker remains the source of truth for users, passwords, JWTs, and
 watchlists. The browser never stores or reads the JWT: FastAPI keeps it in a
@@ -69,25 +69,25 @@ same-origin `HttpOnly`, `SameSite=Lax` cookie and validates it before research.
 
 ## Agent workflow
 
-1. The model reads the user's Taiwan-stock research question.
-2. It chooses zero or more tools:
+1. FastAPI classifies the user's Taiwan-stock research question.
+2. It plans zero or more approved read-only queries:
    - `get_stock_snapshot`
    - `get_revenue_history`
    - `search_news`
-3. FastAPI executes the news tool locally and acts as an MCP Client for Java tools.
-4. Tool results return to the same Gemini interaction.
-5. The model produces a Traditional Chinese brief with explicit limitations.
-6. The UI displays the answer, tool trace, citations, and disclaimer.
+3. FastAPI runs independent news and Java MCP queries in parallel.
+4. Their verified JSON results go to Gemini in one synthesis request with no tools enabled.
+5. Gemini produces a Traditional Chinese brief with explicit limitations.
+6. The UI displays the answer, tool trace, citations, and per-stage latency.
 
-The custom-tool loop is capped at three rounds. Invalid responses, timeouts,
-unknown stock codes, and repeated tool calls fail closed instead of inventing
-data.
+Pure quote requests bypass Gemini entirely. Full research uses one Gemini call;
+invalid responses, timeouts, unknown stock codes, and upstream failures fail
+closed instead of inventing data.
 
 ## Project structure
 
 ```text
 app/
-├── agent/          # bounded orchestration loop and research policy
+├── agent/          # deterministic planner, parallel retrieval, and research policy
 ├── api/            # FastAPI endpoints
 ├── clients/        # Gemini gateway and StockTracker MCP Client
 ├── middleware/     # portfolio-demo request limiter
@@ -102,7 +102,7 @@ tests/              # orchestration, configuration, and HTTP adapter tests
 
 - Python 3.12
 - A running TaiwanStockTracker service with its `/mcp` endpoint enabled
-- A Gemini API key and a function-calling model configured through `GEMINI_MODEL`
+- A Gemini API key and a model configured through `GEMINI_MODEL`
 
 ## Local setup
 
@@ -212,8 +212,8 @@ and run:
 The command discovers the tools registered by the Java MCP Server and calls
 `get_stock_snapshot` through MCP using the shared service key.
 
-The runner scores required tool selection, important tool arguments, unnecessary
-tool calls, and citation presence. Qualitative answer claims remain a manual
+The runner scores required query planning, important tool arguments, unnecessary
+queries, and citation presence. Qualitative answer claims remain a manual
 review item for the MVP.
 
 ## Deployment

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from dataclasses import dataclass
 
 from app.clients.gemini import GeminiGateway, SourceCitation
 from app.schemas.research import Citation, ToolTrace
-from app.tools.definitions import build_tools
 from app.tools.executor import ToolExecution, ToolExecutor
 from app.progress import stage
 
@@ -14,15 +14,15 @@ from app.progress import stage
 SYSTEM_PROMPT = """
 你是台灣股票研究助理，只整理公開資訊，不預測股價、不提供買賣建議。
 
+系統會先完成需要的行情、營收與新聞查詢，再把查證結果一次交給你整理。你不需要也不得要求再次呼叫工具。
+
 規則：
-1. 回答即時價格、開盤、昨收或漲跌幅前，必須呼叫 get_stock_snapshot。
-2. 只有使用者詢問營收或基本面趨勢時，才呼叫 get_revenue_history。
-3. 解釋近期事件時呼叫 search_news，優先採用公司公告、交易所與可信新聞來源。
-4. 數字必須忠實使用工具結果，禁止自行推測或修改。
-5. 區分已確認事實與可能影響因素，不把時間相關性寫成直接因果。
-6. 若資料不足或工具失敗，清楚說明限制，不得編造答案。
-7. 最終使用繁體中文，包含「摘要、關鍵數據、可能影響因素、資料限制」四部分。
-8. 公司名稱與股票代碼不得自行猜測；有工具結果時以 stockCode 與 stockName 為準，未核對時不要補上使用者未提供的代碼。
+1. 數字必須忠實使用「預先查證資料」，禁止自行推測、修改或補齊。
+2. 新聞只能使用預先查證資料中的文章，不得虛構來源。
+3. 區分已確認事實與可能影響因素，不把時間相關性寫成直接因果。
+4. 若資料缺少或工具失敗，清楚說明限制，不得編造答案。
+5. 最終使用繁體中文，包含「摘要、關鍵數據、可能影響因素、資料限制」四部分。
+6. 公司名稱與股票代碼不得自行猜測；有工具結果時以 stockCode 與 stockName 為準，未核對時不要補上使用者未提供的代碼。
 """.strip()
 
 
@@ -46,8 +46,8 @@ class ResearchOrchestrator:
     ) -> None:
         self._gateway = gateway
         self._executor = executor
+        # Retained for configuration compatibility with earlier deployments.
         self._max_steps = max_steps
-        self._tools = build_tools()
 
     @property
     def model(self) -> str:
@@ -86,86 +86,106 @@ class ResearchOrchestrator:
                 citations=[],
             )
 
-        turn = await self._gateway.start(
-            user_input=question,
-            system_instruction=SYSTEM_PROMPT,
-            tools=self._tools,
-        )
-        traces: list[ToolTrace] = []
-        citations: list[SourceCitation] = []
-
-        for _ in range(self._max_steps):
-            citations.extend(turn.citations)
-            if turn.search_queries:
-                traces.append(
-                    ToolTrace(
-                        tool="google_search",
-                        arguments={"queries": turn.search_queries},
-                        status="success",
-                        duration_ms=0,
+        planned_calls = self._plan_research(question)
+        if planned_calls:
+            async with stage("資料平行查詢"):
+                executions = await asyncio.gather(
+                    *(
+                        self._executor.execute(call_id, name, arguments)
+                        for call_id, name, arguments in planned_calls
                     )
                 )
-            if not turn.function_calls:
-                if not turn.output_text.strip():
-                    raise AgentIncompleteError("模型沒有產生可用回答")
-                return ResearchOutcome(
-                    answer=turn.output_text,
-                    traces=traces,
-                    citations=self._to_api_citations(citations),
-                )
+        else:
+            executions = []
 
-            executions = await asyncio.gather(
-                *(
-                    self._executor.execute(call.id, call.name, call.arguments)
-                    for call in turn.function_calls
-                )
-            )
-            traces.extend(
-                ToolTrace(
-                    tool=item.name,
-                    arguments=item.arguments,
-                    status=item.status,
-                    duration_ms=item.duration_ms,
-                    error=item.error,
-                    data=(
-                        item.result
-                        if item.status == "success"
-                        and item.name
-                        in {"get_stock_snapshot", "get_revenue_history"}
-                        else None
-                    ),
-                )
-                for item in executions
-            )
-            citations.extend(self._citations_from_tool_results(executions))
-            # A failed data source is already a complete, meaningful result.
-            # Remove tools for the next turn so the model must explain the
-            # limitation instead of repeatedly calling the same broken tool
-            # until the bounded agent loop becomes an HTTP 502.
-            next_tools = (
-                []
-                if any(item.status != "success" for item in executions)
-                else self._tools
-            )
-            turn = await self._gateway.continue_with_results(
-                previous_interaction_id=turn.id,
-                results=[item.as_function_result() for item in executions],
-                system_instruction=SYSTEM_PROMPT,
-                tools=next_tools,
-            )
-
-        if turn.output_text.strip() and not turn.function_calls:
-            citations.extend(turn.citations)
-            return ResearchOutcome(
-                answer=turn.output_text,
-                traces=traces,
-                citations=self._to_api_citations(citations),
-            )
+        traces = [self._to_trace(item) for item in executions]
+        citations = self._citations_from_tool_results(executions)
+        turn = await self._gateway.start(
+            user_input=self._synthesis_input(question, executions),
+            system_instruction=SYSTEM_PROMPT,
+            tools=[],
+        )
+        if turn.function_calls or not turn.output_text.strip():
+            raise AgentIncompleteError("模型沒有產生可用的單次整合回答")
         citations.extend(turn.citations)
         return ResearchOutcome(
-            answer=self._bounded_fallback_answer(traces),
+            answer=turn.output_text,
             traces=traces,
             citations=self._to_api_citations(citations),
+        )
+
+    @staticmethod
+    def _plan_research(question: str) -> list[tuple[str, str, dict]]:
+        codes = list(dict.fromkeys(re.findall(r"(?<!\d)(\d{4})(?!\d)", question)))
+        quote_terms = ("股價", "成交價", "行情", "漲跌", "昨收", "開盤", "今天", "今日", "現在", "目前", "比較", "完整研究")
+        revenue_terms = ("營收", "基本面", "完整研究")
+        news_terms = ("新聞", "事件", "消息", "影響", "為什麼", "原因", "完整研究", "熱門股")
+
+        calls: list[tuple[str, str, dict]] = []
+        if any(term in question for term in quote_terms):
+            calls.extend(
+                (f"snapshot-{code}", "get_stock_snapshot", {"stock_code": code})
+                for code in codes
+            )
+        if any(term in question for term in revenue_terms):
+            months = ResearchOrchestrator._revenue_months(question)
+            calls.extend(
+                (f"revenue-{code}", "get_revenue_history", {"stock_code": code, "months": months})
+                for code in codes
+            )
+        if any(term in question for term in news_terms):
+            calls.append(
+                (
+                    "news-1",
+                    "search_news",
+                    {"query": question[:120], "days": 7, "max_results": 5},
+                )
+            )
+        return calls
+
+    @staticmethod
+    def _revenue_months(question: str) -> int:
+        numeric = re.search(r"最近\s*(\d{1,2})\s*個?月", question)
+        if numeric:
+            return min(max(int(numeric.group(1)), 1), 24)
+        for label, months in (("十二個月", 12), ("六個月", 6), ("三個月", 3), ("一個月", 1)):
+            if label in question:
+                return months
+        return 12
+
+    @staticmethod
+    def _synthesis_input(question: str, executions: list[ToolExecution]) -> str:
+        verified = [
+            {
+                "tool": item.name,
+                "arguments": item.arguments,
+                "status": item.status,
+                "data": item.result if item.status == "success" else None,
+                "error": item.error,
+            }
+            for item in executions
+        ]
+        return (
+            f"使用者問題：\n{question}\n\n"
+            "預先查證資料（JSON）：\n"
+            f"{json.dumps(verified, ensure_ascii=False)}\n\n"
+            "請直接完成一次最終整理，不要要求或描述後續工具呼叫。"
+        )
+
+    @staticmethod
+    def _to_trace(item: ToolExecution) -> ToolTrace:
+        return ToolTrace(
+            tool=item.name,
+            arguments=item.arguments,
+            status=item.status,
+            duration_ms=item.duration_ms,
+            error=item.error,
+            data=(
+                item.result
+                if item.status == "success"
+                and item.name in {"get_stock_snapshot", "get_revenue_history"}
+                else None
+            ),
         )
 
     @staticmethod

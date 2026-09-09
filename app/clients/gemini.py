@@ -100,7 +100,7 @@ class GeminiInteractionsGateway:
         )
         return self._to_turn(interaction)
 
-    @measured("Gemini（含內建搜尋與重試）")
+    @measured("Gemini 單次整合（含重試）")
     async def _create_with_retry(self, **kwargs: Any) -> Any:
         max_attempts = 3
         remaining_wait = 15.0
