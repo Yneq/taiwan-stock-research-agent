@@ -75,23 +75,43 @@ class StockTrackerClient:
         return [tool.name for tool in result.tools]
 
     async def warmup(self) -> None:
-        """Wake the data service and establish the reusable MCP session."""
-        await self._ensure_session()
+        """Check readiness without creating a transport in a background task."""
+        if self._session is not None:
+            return
+        await self._wait_until_ready()
 
     async def _call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> dict[str, Any]:
-        session = await self._ensure_session()
-        try:
-            result = await session.call_tool(name, arguments)
-        except httpx.TimeoutException as exc:
-            raise StockTrackerError("StockTracker MCP request timed out") from exc
-        except httpx.HTTPError as exc:
-            raise StockTrackerError("StockTracker MCP server is unavailable") from exc
-        except Exception as exc:
-            raise StockTrackerError(f"StockTracker MCP call failed: {exc}") from exc
+        for attempt in range(2):
+            session = await self._ensure_session()
+            try:
+                result = await session.call_tool(name, arguments)
+                break
+            except httpx.TimeoutException as exc:
+                raise StockTrackerError("StockTracker MCP request timed out") from exc
+            except Exception as exc:
+                if attempt == 0 and self._owns_session:
+                    await self._reset_session(session)
+                    continue
+                if isinstance(exc, httpx.HTTPError):
+                    raise StockTrackerError("StockTracker MCP server is unavailable") from exc
+                detail = str(exc).strip() or exc.__class__.__name__
+                raise StockTrackerError(f"StockTracker MCP call failed: {detail}") from exc
 
         return self._decode_tool_result(result)
+
+    async def _reset_session(self, failed_session: Any) -> None:
+        async with self._connect_lock:
+            if self._session is not failed_session:
+                return
+            self._session = None
+            old_stack = self._exit_stack
+            self._exit_stack = AsyncExitStack()
+            try:
+                await old_stack.aclose()
+            except Exception:
+                logger.debug("Failed MCP transport cleanup ignored before reconnect", exc_info=True)
 
     async def _ensure_session(self) -> Any:
         if self._session is not None:

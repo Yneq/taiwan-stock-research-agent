@@ -25,6 +25,11 @@ class FakeMcpSession:
         )
 
 
+class ClosedSession:
+    async def call_tool(self, name: str, arguments: dict) -> object:
+        raise RuntimeError()
+
+
 @pytest.mark.asyncio
 async def test_calls_snapshot_mcp_tool_and_parses_structured_result() -> None:
     session = FakeMcpSession(
@@ -116,6 +121,32 @@ async def test_warmup_reuses_existing_mcp_session() -> None:
 
     assert client._session is session
     assert client.warmup_url == "https://stock.example/health"
+
+
+@pytest.mark.asyncio
+async def test_reconnects_once_after_closed_mcp_transport(monkeypatch) -> None:
+    recovered = FakeMcpSession(
+        SimpleNamespace(
+            isError=False,
+            structuredContent={"stockCode": "2454", "currentPrice": 4625},
+            content=[],
+        )
+    )
+    client = StockTrackerClient("https://stock.example", "secret")
+    client._session = ClosedSession()
+    reset_calls = []
+
+    async def reset(session):
+        reset_calls.append(session)
+        client._session = recovered
+
+    monkeypatch.setattr(client, "_reset_session", reset)
+
+    result = await client.get_snapshot("2454")
+
+    assert result["currentPrice"] == 4625
+    assert len(reset_calls) == 1
+    assert recovered.calls == [("get_stock_snapshot", {"stockCode": "2454"})]
 
 
 @pytest.mark.asyncio
