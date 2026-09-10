@@ -6,7 +6,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 import httpx
-from app.progress import measured
+from app.progress import measured, stage
 
 
 class NewsSearchError(RuntimeError):
@@ -37,6 +37,25 @@ class NewsSearchClient:
         *,
         days: int = 7,
         max_results: int = 5,
+        fallback_query: str | None = None,
+    ) -> dict[str, Any]:
+        result = await self._search_once(query, days=days, max_results=max_results)
+        result['attemptedQueries'] = [query.strip()]
+        result['broadened'] = False
+        fallback = (fallback_query or '').strip()
+        if not result['articles'] and fallback and fallback != query.strip():
+            async with stage('新聞零結果：放寬關鍵字補查'):
+                result = await self._search_once(fallback, days=days, max_results=max_results)
+            result['attemptedQueries'] = [query.strip(), fallback]
+            result['broadened'] = True
+        result['searchStatus'] = 'found' if result['articles'] else 'no_matches'
+        result['limitation'] = ('放寬為一般公司新聞，未必符合原主題。' if result['broadened'] else '')
+        if not result['articles']:
+            result['limitation'] = '本次搜尋未找到符合條件的新聞；不代表期間內沒有新聞。'
+        return result
+
+    async def _search_once(
+        self, query: str, *, days: int, max_results: int,
     ) -> dict[str, Any]:
         normalized_query = query.strip()
         if not normalized_query:

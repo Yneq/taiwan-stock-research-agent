@@ -248,3 +248,15 @@ async def test_quote_and_messages_does_not_skip_news():
     outcome = await orchestrator.research("2454 今天股價和重要消息")
     assert [trace.tool for trace in outcome.traces] == ["get_stock_snapshot", "search_news"]
     assert len(gateway.starts) == 1
+
+
+@pytest.mark.parametrize('question,query,fallback', [
+    ('台積電最近一週有哪些可能影響公司的重要新聞？', '台積電', None),
+    ('聯發科 2454 最近有哪些 AI 晶片相關的重要消息？', '聯發科 AI 晶片', '聯發科'),
+    ('鴻海最近有哪些電動車相關的重要消息？', '鴻海 電動車', '鴻海'),
+    ('整理台積電 2330 今天的股價、最近月營收與近期重要新聞。', '台積電', None),
+])
+def test_news_button_keywords(question, query, fallback):
+    args = next(args for _, name, args in ResearchOrchestrator._plan_research(question) if name == 'search_news')
+    assert args['query'] == query
+    assert args['fallback_query'] == fallback

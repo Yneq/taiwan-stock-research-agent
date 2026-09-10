@@ -54,6 +54,7 @@ class ToolExecutor:
                     arguments["query"],
                     days=int(arguments.get("days", 7)),
                     max_results=int(arguments.get("max_results", 5)),
+                    fallback_query=arguments.get("fallback_query"),
                 )
             else:
                 raise ValueError(f"Unsupported tool: {name}")

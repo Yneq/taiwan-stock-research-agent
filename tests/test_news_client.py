@@ -53,3 +53,27 @@ async def test_rejects_invalid_news_search_window() -> None:
         client = NewsSearchClient(client=http_client)
         with pytest.raises(NewsSearchError, match="between 1 and 30"):
             await client.search("台積電", days=31)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('first_empty', [True, False])
+async def test_broaden_only_on_empty_and_keep_time_window(first_empty):
+    queries = []
+    def handler(request):
+        queries.append(request.url.params['q'])
+        empty = first_empty and len(queries) == 1
+        return httpx.Response(200, content=b'<rss><channel/></rss>' if empty else RSS_PAYLOAD)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        result = await NewsSearchClient(client=http).search('台積電 AI', fallback_query='台積電')
+    assert queries == (['台積電 AI when:7d', '台積電 when:7d'] if first_empty else ['台積電 AI when:7d'])
+    assert result['broadened'] == first_empty
+    assert result['articles']
+
+
+@pytest.mark.asyncio
+async def test_empty_does_not_claim_no_news_exists():
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b'<rss><channel/></rss>'))) as http:
+        result = await NewsSearchClient(client=http).search('台積電 AI', fallback_query='台積電')
+    assert result['searchStatus'] == 'no_matches'
+    assert len(result['attemptedQueries']) == 2
+    assert '不代表期間內沒有新聞' in result['limitation']
