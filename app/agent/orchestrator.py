@@ -224,6 +224,13 @@ class ResearchOrchestrator:
 
     @staticmethod
     def _simple_quote_code(question: str) -> str | None:
+        # A bare four-digit code is the shortest valid query in a stock research UI.
+        # Treat it as an immediate quote request instead of sending Gemini an empty
+        # verified-data payload.
+        bare_code = re.fullmatch(r"\s*(\d{4})\s*", question)
+        if bare_code:
+            return bare_code.group(1)
+
         codes = re.findall(r"(?<!\d)(\d{4})(?!\d)", question)
         if len(set(codes)) != 1:
             return None

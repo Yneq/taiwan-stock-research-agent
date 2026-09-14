@@ -127,6 +127,19 @@ async def test_simple_quote_with_code_bypasses_gemini() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bare_stock_code_defaults_to_quote_lookup() -> None:
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(GatewayMustNotRun(), executor)
+
+    outcome = await orchestrator.research(" 1785 ")
+
+    assert orchestrator.model_for("1785") == "StockTracker · deterministic"
+    assert executor.calls == [("get_stock_snapshot", {"stock_code": "1785"})]
+    assert len(outcome.traces) == 1
+    assert outcome.traces[0].arguments["stock_code"] == "1785"
+
+
+@pytest.mark.asyncio
 async def test_news_question_still_uses_gemini() -> None:
     gateway = FakeGateway([turn("turn-1", text="近期新聞摘要")])
     executor = FakeExecutor()
