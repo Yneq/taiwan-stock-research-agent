@@ -1,0 +1,60 @@
+name: Deploy FinScope TW to AWS Lightsail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "deploy/aws/**"
+      - "Dockerfile"
+      - "pyproject.toml"
+      - ".github/workflows/deploy-lightsail.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finscope-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Update Lightsail containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      LIGHTSAIL_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+      LIGHTSAIL_USER: ${{ secrets.LIGHTSAIL_USER }}
+
+    steps:
+      - name: Configure SSH
+        env:
+          LIGHTSAIL_SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          LIGHTSAIL_KNOWN_HOSTS: ${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$LIGHTSAIL_SSH_KEY" > ~/.ssh/finscope_deploy
+          printf '%s\n' "$LIGHTSAIL_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/finscope_deploy ~/.ssh/known_hosts
+
+      - name: Deploy on Lightsail
+        run: |
+          ssh \
+            -i ~/.ssh/finscope_deploy \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" \
+            'cd /opt/finscope/taiwan-stock-research-agent && ./deploy/aws/deploy.sh'
+
+      - name: Verify production health
+        run: |
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --retry 12 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            https://vanceai.space/health

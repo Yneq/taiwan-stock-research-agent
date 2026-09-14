@@ -92,6 +92,21 @@ cd /opt/finscope/taiwan-stock-research-agent
 ./deploy/aws/deploy.sh
 ```
 
+## Automatic deploy from GitHub Actions
+
+The workflow `.github/workflows/deploy-lightsail.yml` deploys the application
+whenever application or AWS deployment files are pushed to `main`. Configure
+these secrets in the GitHub `production` environment:
+
+- `LIGHTSAIL_HOST`: the instance static IPv4 address
+- `LIGHTSAIL_USER`: normally `ubuntu`
+- `LIGHTSAIL_SSH_KEY`: the private SSH key used by the workflow
+- `LIGHTSAIL_KNOWN_HOSTS`: the pinned SSH host-key entry for the instance
+
+The workflow connects to the instance, runs the same `deploy.sh` command above,
+and verifies `https://vanceai.space/health`. It can also be started manually
+from the repository's Actions page with **Run workflow**.
+
 Inspect health and logs:
 
 ```bash
