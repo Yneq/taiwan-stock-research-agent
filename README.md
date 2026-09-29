@@ -19,18 +19,22 @@ the authenticated research workflow without creating an account.
 to understand the real architecture, request flow, security boundaries, failure
 handling, and current test evidence without reading the repository line by line.
 
-![FinScope TW research terminal](docs/images/finscope-home.jpg)
+### Research dashboard
 
 The dashboard combines a live TWSE ticker, grouped research prompts, member
 authentication, and an observable agent workflow in a Taiwan-market visual
 language.
 
-![FinScope TW grounded research result with charts and tool trace](docs/images/finscope-research-result.jpg)
+![FinScope TW research terminal](docs/images/finscope-home.jpg)
+
+### Grounded research result
 
 A completed brief keeps the model answer beside deterministic market charts,
 the tools that were called, their latency, and the public sources used. This
 makes retrieval failures and unsupported claims visible instead of hiding them
 behind the final prose.
+
+![FinScope TW grounded research result with charts and tool trace](docs/images/finscope-research-result.jpg)
 
 ## What it demonstrates
 
