@@ -21,6 +21,7 @@ def test_loads_bounded_settings(monkeypatch: pytest.MonkeyPatch) -> None:
 
     settings = Settings.from_environment()
 
+    assert settings.gemini_model == "gemini-3.6-flash"
     assert settings.max_agent_steps == 4
     assert settings.stocktracker_base_url == "http://localhost:8080"
     assert settings.request_timeout_seconds == 150

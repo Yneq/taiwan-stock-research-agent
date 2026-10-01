@@ -1,8 +1,9 @@
 # FinScope TW — Taiwan Stock Research Agent
 
-A grounded Taiwan-stock research assistant that decides when to retrieve live
-market data, revenue history, and current web sources before answering. It is a
-research tool—not a price predictor or trading-signal generator.
+A grounded Taiwan-stock research assistant whose FastAPI orchestrator plans
+read-only queries, retrieves evidence in parallel, and asks Gemini to synthesize
+the verified JSON once. It is a research tool—not a price predictor or
+trading-signal generator.
 
 The companion Java MCP Server lives in
 [Yneq/StockTracker](https://github.com/Yneq/StockTracker).
@@ -19,20 +20,10 @@ the authenticated research workflow without creating an account.
 to understand the real architecture, request flow, security boundaries, failure
 handling, and current test evidence without reading the repository line by line.
 
-### Research dashboard
-
-The dashboard combines a live TWSE ticker, grouped research prompts, member
-authentication, and an observable agent workflow in a Taiwan-market visual
-language.
+The following two screens show the research dashboard and a completed grounded
+brief with deterministic charts, tool latency, and public citations.
 
 ![FinScope TW research terminal](docs/images/finscope-home.jpg)
-
-### Grounded research result
-
-A completed brief keeps the model answer beside deterministic market charts,
-the tools that were called, their latency, and the public sources used. This
-makes retrieval failures and unsupported claims visible instead of hiding them
-behind the final prose.
 
 ![FinScope TW grounded research result with charts and tool trace](docs/images/finscope-research-result.jpg)
 
@@ -40,6 +31,7 @@ behind the final prose.
 
 - Deterministic research planning with parallel data retrieval
 - A single Gemini synthesis call after evidence collection
+- An explicit evolution from a bounded function-calling loop to deterministic orchestration
 - Free, keyless current-news search with structured citations
 - Python MCP Client calling a separate Java/Spring Boot MCP Server
 - Java-owned member accounts bridged through a FastAPI BFF with HttpOnly JWT cookies
@@ -71,7 +63,11 @@ TaiwanStockTracker remains the source of truth for users, passwords, JWTs, and
 watchlists. The browser never stores or reads the JWT: FastAPI keeps it in a
 same-origin `HttpOnly`, `SameSite=Lax` cookie and validates it before research.
 
-## Agent workflow
+## Current agent workflow
+
+**Gemini does not select or invoke tools in the current implementation.**
+FastAPI owns query planning and passes Gemini a completed evidence package with
+tools disabled.
 
 1. FastAPI classifies the user's Taiwan-stock research question.
 2. It plans zero or more approved read-only queries:
@@ -87,6 +83,16 @@ Pure quote requests bypass Gemini entirely. Full research uses one Gemini call;
 invalid responses, timeouts, unknown stock codes, and upstream failures fail
 closed instead of inventing data.
 
+### Design evolution
+
+The first MVP used Gemini function calling in a loop capped at three rounds.
+That design was replaced because repeated model turns increased latency, cost,
+and tool-selection variance. The current version uses deterministic intent
+rules, runs independent retrievals concurrently, and sends their structured
+results to Gemini once for final wording. `MAX_AGENT_STEPS` remains only as a
+backward-compatible configuration field; it no longer controls a model/tool
+loop.
+
 ## Project structure
 
 ```text
@@ -97,7 +103,7 @@ app/
 ├── middleware/     # portfolio-demo request limiter
 ├── schemas/        # validated API contracts
 ├── static/         # responsive research interface
-└── tools/          # function declarations and execution
+└── tools/          # approved query execution and structured results
 evals/cases.json    # fixed behavioral evaluation set
 tests/              # orchestration, configuration, and HTTP adapter tests
 ```
@@ -122,7 +128,7 @@ local environment manager:
 
 ```text
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_MODEL=gemini-3.6-flash
 STOCKTRACKER_BASE_URL=http://localhost:8080
 STOCKTRACKER_API_KEY=...
 JWT_SECRET=the-same-secret-used-by-the-java-service
@@ -185,7 +191,7 @@ The response includes:
 
 ### `GET /health`
 
-Used by Render to wake and monitor the service.
+Used by deployment verification and service monitoring.
 
 ## Verification
 
@@ -222,33 +228,26 @@ review item for the MVP.
 
 ## Deployment
 
-The included `Dockerfile` and `render.yaml` deploy one lightweight FastAPI web
-service to Render. Configure all secrets in Render—not in GitHub.
+The current production deployment runs on AWS Lightsail. The
+[AWS deployment bundle](deploy/aws/README.md) uses Docker Compose to run Caddy,
+FastAPI, and the Java MCP Server as separate containers on one instance. Only
+Caddy exposes ports 80/443; Java remains on an internal Docker network.
 
-The Java MCP Server is deployed separately. Its public URL becomes
-`STOCKTRACKER_BASE_URL`; the Python service connects to its `/mcp` endpoint.
-The shared random service key is configured as `AGENT_API_KEY` on Java and
-`STOCKTRACKER_API_KEY` on Python.
+Pushes to `main` trigger GitHub Actions, which connects to Lightsail over SSH,
+runs the deployment script, rebuilds the containers, and verifies `/health`.
+Deployment credentials are stored in GitHub Secrets, while application secrets
+remain in the instance-only `.env.aws` file. The older `render.yaml` is retained
+as a reference deployment option, not the current production topology.
 
-For the always-on portfolio deployment, the
-[AWS Lightsail bundle](deploy/aws/README.md) runs Caddy, this FastAPI service,
-and the Java MCP Server as separate containers on one instance. Java remains on
-an internal Docker network, removing the free-tier cross-service cold start.
-
-Configure the same `JWT_SECRET` on both Render services. On Python, also set
-`SESSION_COOKIE_SECURE=true`; the included Blueprint already declares this
-non-secret production setting.
+`AGENT_API_KEY` protects Python-to-Java MCP traffic, and both services share the
+same `JWT_SECRET`. Production also sets `SESSION_COOKIE_SECURE=true`.
 
 Set `DEMO_USERNAME`, `DEMO_EMAIL`, and a strong `DEMO_PASSWORD` only on the
 Python service. The first one-click demo request creates that Java-owned member
 if necessary; the password is never shipped to browser JavaScript.
 
-The production timeout is 150 seconds so a first request can wait for the free
-Java service to wake from inactivity. Warm requests normally complete much
-faster.
-
 The model runs on Google's infrastructure, so no model weights or GPU runtime
-are stored in the Render container.
+are stored on the Lightsail instance.
 
 ## Responsible-use boundary
 

@@ -4,19 +4,19 @@
 
 ## 30 秒專案介紹
 
-FinScope TW 是一個「會自己選工具查資料」的台股研究助理。使用者用自然語言提問後，Python Agent 會透過 Gemini function calling 判斷是否需要查即時行情、月營收或近期新聞；其中股票資料不是由模型猜測，而是透過 MCP 呼叫獨立的 Java/Spring Boot StockTracker。系統最後整合資料、列出工具軌跡與新聞來源，但不預測股價，也不提供買賣建議。
+FinScope TW 是一個「先查證、再整理」的台股研究助理。使用者用自然語言提問後，Python FastAPI 依股票代號與查詢意圖規劃即時行情、月營收或近期新聞查詢，並平行取得資料；其中股票資料透過 MCP 呼叫獨立的 Java/Spring Boot StockTracker。所有結果組成結構化 JSON 後，只呼叫 Gemini 一次完成摘要。系統列出工具軌跡與新聞來源，但不預測股價，也不提供買賣建議。
 
 一句話版本：
 
-> 我把原有的 Java 台股資料系統擴充成 MCP Server，再用 Python 建立具備工具選擇、引用來源、會員驗證與錯誤處理的研究 Agent。
+> 我把原有的 Java 台股資料系統擴充成 MCP Server，再用 Python 建立具備規則式查詢規劃、平行取證、單次模型彙整、會員驗證與錯誤處理的研究 Agent。
 
 ## 為什麼值得做成兩個服務
 
 | 服務 | 主要責任 | 為什麼由它負責 |
 |---|---|---|
 | Java / StockTracker | 股票資料、會員、JWT、PostgreSQL、MCP tools | 延續原有 Java domain service，維持單一資料來源 |
-| Python / Research Agent | LLM orchestration、新聞搜尋、工具迴圈、BFF、研究介面 | Python 的 AI SDK 與測試工具成熟，適合快速迭代 Agent |
-| Gemini | 判斷需要哪些工具、綜合已取得的內容 | 只負責推理，不直接持有 DB 或服務密鑰 |
+| Python / Research Agent | deterministic planning、平行資料查詢、新聞搜尋、BFF、研究介面 | 把可驗證的流程留在程式碼，降低模型回合數與工具選擇變異 |
+| Gemini | 將已查證 JSON 彙整成研究摘要 | 只呼叫一次，不取得 tools、DB 或服務密鑰 |
 
 拆成兩個 repository 不是 MCP 的必要條件，但能清楚呈現服務邊界：Java 是可被不同 AI Client 重複使用的資料工具服務，Python 是目前的一個 Agent Client。未來換模型或新增另一個 Agent，不必改寫股票商業邏輯。
 
@@ -26,9 +26,9 @@ FinScope TW 是一個「會自己選工具查資料」的台股研究助理。�
 flowchart LR
     U["Browser / Dashboard"] -->|"HttpOnly session cookie"| P["Python FastAPI"]
     P --> O["Research Orchestrator"]
-    O <-->|"function calls + tool results"| G["Gemini API"]
-    O --> N["Google News RSS"]
-    O -->|"MCP + X-Agent-Key"| J["Java Spring Boot"]
+    O -->|"verified JSON · one synthesis call"| G["Gemini API"]
+    O -->|"parallel query"| N["Google News RSS"]
+    O -->|"parallel MCP + X-Agent-Key"| J["Java Spring Boot"]
     P -->|"login/register + Bearer JWT"| J
     J --> T["TWSE MIS"]
     J --> F["FinMind"]
@@ -39,10 +39,10 @@ flowchart LR
 
 1. 使用者登入後送出自然語言問題。
 2. FastAPI 驗證 HttpOnly cookie，將問題交給 `ResearchOrchestrator`。
-3. Gemini 回傳 function call，而不是直接編造需要查證的數字。
-4. Python 執行新聞工具，或透過 MCP 呼叫 Java 的行情與營收工具。
-5. 工具 JSON 結果送回同一輪 Gemini interaction；資訊不足時可再選工具。
-6. 最多三輪後產生繁體中文研究摘要，前端同步顯示工具軌跡、耗時與引用來源。
+3. Python 依股票代號與問題關鍵字規劃允許的唯讀查詢。
+4. 新聞工具與 Java MCP 行情／營收工具可透過 `asyncio.gather` 平行執行。
+5. 工具結果組成預先查證 JSON，並在停用 tools 的情況下交給 Gemini 一次。
+6. Gemini 產生繁體中文研究摘要；純行情請求則直接格式化工具結果、完全略過 Gemini。
 7. 工具失敗時保留明確的資料限制，不用模型猜一個數字補上。
 
 ## Java：原專案增加了什麼
@@ -78,12 +78,11 @@ MCP tool 回傳的是有結構的 `StockSnapshotToolResult` 與 `RevenueHistoryT
 | 程式位置 | 責任 |
 |---|---|
 | `app/main.py` | FastAPI lifecycle、依賴組裝、health/warm-up、market ticker cache |
-| `app/agent/orchestrator.py` | system policy、最多三輪的 function-calling loop、工具去重、fail-closed |
-| `app/tools/definitions.py` | 宣告 Gemini 可選擇的三個工具與參數 schema |
+| `app/agent/orchestrator.py` | system policy、規則式查詢規劃、平行取證、單次 Gemini 彙整、fail-closed |
 | `app/tools/executor.py` | 執行工具、統一成功/失敗格式並記錄耗時 |
 | `app/clients/stocktracker.py` | 可重用的 MCP session、Java readiness、API key、結果解碼與錯誤正規化 |
 | `app/clients/news.py` | 搜尋 Google News RSS，解析標題、時間與來源連結 |
-| `app/clients/gemini.py` | 將 Gemini interaction/function call 轉成應用程式內部介面 |
+| `app/clients/gemini.py` | 將已查證資料送入 Gemini，處理單次彙整與有限重試 |
 | `app/clients/auth.py` | 呼叫 Java 註冊、登入與會員 API |
 | `app/auth/session.py` | 驗證 Java HS256 JWT，轉成安全的同源 HttpOnly cookie session |
 | `app/api/session.py` | 登入、登出、demo account 與會員資料端點 |
@@ -91,16 +90,20 @@ MCP tool 回傳的是有結構的 `StockSnapshotToolResult` 與 `RevenueHistoryT
 | `app/middleware/rate_limit.py` | 控制作品集公開服務的請求頻率與模型成本 |
 | `app/static` | Dashboard、快速提問、圖表、研究軌跡與引用來源 UI |
 
-### Agent 不等於單次 prompt
+### Agent orchestration 不代表一定要讓模型選工具
 
-這個專案的核心不是「把問題丟給 Gemini」：
+目前版本的核心不是「把問題直接丟給 Gemini」：
 
-- 模型只看到工具定義，實際 API key 與資料庫密碼不會交給模型。
-- 模型決定要查哪個工具，但程式碼掌握允許執行的工具清單與參數驗證。
-- 每次工具結果會回到 interaction，模型可依結果決定下一步。
-- 迴圈最多三輪，避免成本失控或 Agent 無限循環。
+- FastAPI 依股票代號與問題意圖規劃允許的唯讀查詢。
+- 行情、營收與新聞可平行取得，API key 與資料庫密碼都不會交給模型。
+- Gemini 只收到已查證 JSON，且呼叫時不提供 tools。
+- 完整研究最多一次 Gemini call；純行情完全略過 Gemini。
 - 即時股價必須來自 snapshot tool；近期事件必須有 news source。
-- 失敗會明示資料限制，不把模型既有知識偽裝成即時查詢結果。
+- 失敗會保留 tool trace 並明示資料限制，不用模型既有知識補即時數字。
+
+### 設計演進：為什麼取消 function-calling loop
+
+第一版 MVP 曾讓 Gemini 透過 function calling 自行選工具，最多三輪。實際部署後，重複模型回合增加 latency、token 成本與選錯／重複呼叫工具的變異，因此在 commit `5a9de80` 改成 deterministic planner：程式先取證，再讓 Gemini 單次彙整。`MAX_AGENT_STEPS` 目前只為舊部署設定相容保留，不再控制模型工具迴圈。
 
 ## 會員與安全邊界
 
@@ -122,7 +125,7 @@ sequenceDiagram
 
 - 瀏覽器 JavaScript 讀不到 JWT，降低 token 被前端腳本竊取的風險。
 - Java 與 Python 必須使用同一組 `JWT_SECRET`；不同用途的 `AGENT_API_KEY` 保護 MCP 服務。
-- Demo 密碼只存在 Render server environment，API response 與前端程式都不回傳它。
+- Demo 密碼只存在 Lightsail instance environment，API response 與前端程式都不回傳它。
 - Demo 第一次使用時，Python 先嘗試登入；只有收到 401 才註冊並重試。已有帳號時不會重複註冊。
 - 公開作品集加上 rate limit；MCP tools 是唯讀工具，沒有下單能力。
 
@@ -139,7 +142,7 @@ sequenceDiagram
 目前測試結果：
 
 - Java：23 tests，0 failures，0 errors。
-- Python：24 tests，全部通過。
+- Python：49 tests，全部通過。
 
 這次新增的高價值案例：
 
@@ -271,11 +274,11 @@ REST 端點是為固定的應用流程設計；MCP 讓 AI Client 用標準方式
 
 ### 為什麼不用本地模型？
 
-本專案的重點是穩定的 function calling。模型透過環境設定可替換，目前選擇 hosted Gemini 來降低 demo 的工具選擇失敗率，也避免在免費 web service 裡承擔模型記憶體與啟動成本。
+模型透過環境設定可替換，目前選擇 hosted Gemini 負責最後的語言彙整，避免在 Lightsail 上承擔模型權重、GPU／記憶體與啟動成本。工具規劃已由 FastAPI 掌握，因此不依賴本地小模型是否能穩定 function calling。
 
 ### 怎麼控制成本？
 
-限制最多三輪工具迴圈、限制新聞筆數與查詢期間、公開 API rate limit、market ticker cache，並把模型部署交給 API provider。這些限制同時控制成本、latency 與失控風險。
+完整研究固定最多一次 Gemini call，純行情完全略過模型；另外限制新聞筆數與查詢期間、公開 API rate limit、market ticker cache，並把模型部署交給 API provider。這些限制同時控制成本、latency 與失控風險。
 
 ### 如果 Java 或外部 API 壞掉呢？
 
@@ -289,7 +292,7 @@ Unit test 適合 JWT、錯誤轉換、DAO interaction、tool dispatch 等決定�
 
 1. **20 秒：定位** —「這不是選股或交易機器人，而是每個即時數字都有工具軌跡的台股研究助理。」
 2. **30 秒：會員** — 點一鍵 Demo 登入，說明 Java 管理帳號/JWT，Python 以 HttpOnly cookie 保護瀏覽器 session。
-3. **50 秒：行情** — 問「台積電今天股價和漲跌幅」，指出 Gemini 選了 Java MCP snapshot tool，畫面顯示耗時與結果。
+3. **50 秒：行情** — 問「台積電今天股價和漲跌幅」，指出 FastAPI 直接規劃 Java MCP snapshot tool，純行情不呼叫 Gemini，畫面顯示耗時與結果。
 4. **50 秒：複合問題** — 問「聯發科近期 AI 晶片消息與營收趨勢」，展示新聞、營收工具與引用來源。
 5. **30 秒：架構** — 說明 Python Agent 與 Java domain service 的分工，以及 MCP/X-Agent-Key 邊界。
 6. **30 秒：可靠性** — 展示測試結果與 tool failure 的資料限制，強調不編造即時數據。
@@ -299,7 +302,7 @@ Unit test 適合 JWT、錯誤轉換、DAO interaction、tool dispatch 等決定�
 - 不說「能預測股票漲跌」或「可以推薦買賣」。
 - 不說「完全不會 hallucinate」；應說有 grounding、policy 與 failure handling 降低風險。
 - 不把 Google News RSS 當成完整的專業市場資料庫。
-- 不宣稱目前具備 production-grade 高可用；Render free tier 的 cold start 是已知限制。
+- 不宣稱目前具備 production-grade 高可用；目前是單台 Lightsail，沒有多區容錯或自動水平擴充。
 - 不因為用了 MCP 就說它是多 Agent 系統；目前是一個 Agent orchestration service 加兩類外部工具。
 
 ## 下一步可擴充
