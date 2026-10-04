@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinScope React + TypeScript 面試複習地圖</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;color:#e6f0e9;background:#0c1b17}*{box-sizing:border-box}body{margin:0;line-height:1.75}a{color:#e8b39b;text-decoration:none}a:hover{text-decoration:underline}button{font:inherit;cursor:pointer}header{padding:52px max(24px,calc((100vw - 1120px)/2));background:radial-gradient(circle at 80% 10%,#315343,#11261e 60%);border-bottom:1px solid #466250}.kicker{font-size:12px;letter-spacing:.15em;color:#d1a28b;text-transform:uppercase}h1{font-size:clamp(34px,5vw,57px);line-height:1.3;margin:15px 0}header p{max-width:760px;color:#b5c8bb;font-size:16px}main{max-width:1120px;margin:auto;padding:30px 24px 80px}.links{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}.links a,.pill{border:1px solid #6d8273;border-radius:999px;padding:7px 13px;font-size:12px}.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:30px 0 22px}.tabs button{border:1px solid #58715f;background:#173128;color:#d4e8d9;padding:10px 16px;border-radius:4px}.tabs button[aria-selected=true]{background:#b7574c;color:#fff;border-color:#b7574c}.tab-panel[hidden]{display:none}.card{background:#162a22;border:1px solid #41604e;padding:25px;margin:16px 0}.card h2,.card h3{margin:0 0 13px}.lead{font-size:19px;color:#f1d3bd}.muted{color:#a8bdac}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}.flow a{display:block;min-width:0;background:#20392d;border:1px solid #58715f;padding:18px;color:#e7eee5}.flow a strong{display:block;color:#efc3a8;margin-bottom:6px}.flow a span{font-size:13px;color:#bad0bd}.flow-arrow{text-align:center;color:#cf856f;font-size:23px;padding-top:28px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.grid .card{margin:0}.file{font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;color:#cfa589;overflow-wrap:anywhere}code,pre{font-family:ui-monospace,SFMono-Regular,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#091813;border:1px solid #355342;color:#d3e9da;padding:17px;font-size:12px;line-height:1.55;margin:12px 0}.note{border-left:3px solid #d47d68;padding-left:14px;color:#c5d9c7}.tag{color:#f2c5a7;font-weight:700}.check{margin:0;padding-left:22px}.check li{margin:8px 0}.pitch{font-size:17px;line-height:1.9;color:#edeee4}.foot{font-size:12px;color:#9bb09e;margin-top:35px}footer{border-top:1px solid #42604e;padding:24px;text-align:center;color:#869e8b;font-size:12px}@media(max-width:780px){.flow{grid-template-columns:1fr}.flow-arrow{display:none}.grid{grid-template-columns:1fr}header{padding:45px 24px}.card{padding:20px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kicker">FinScope TW · React + TypeScript · Interview Map</div>
+    <h1>從一個查詢頁，講清楚<br>React、型別與測試。</h1>
+    <p>這是一份根據本專案實際程式碼製作的複習導覽。React 客戶端讓會員輸入台股問題，呼叫既有 FastAPI，呈現研究摘要、工具軌跡及來源。</p>
+    <div class="links"><a href="../frontend-react/README.md">前端使用說明</a><a href="https://github.com/Yneq/taiwan-stock-research-agent">Python 專案</a><a href="https://github.com/Yneq/StockTracker">Java 資料服務</a><a href="https://vanceai.space/">既有線上展示</a></div>
+  </header>
+  <main>
+    <nav class="tabs" aria-label="複習章節">
+      <button type="button" data-tab="flow" aria-selected="true">① 請求流程</button>
+      <button type="button" data-tab="react" aria-selected="false">② React 重點</button>
+      <button type="button" data-tab="types" aria-selected="false">③ TypeScript 與 API</button>
+      <button type="button" data-tab="tests" aria-selected="false">④ 測試與面試</button>
+    </nav>
+
+    <section class="tab-panel" data-panel="flow">
+      <p class="lead">使用者的問題由 React 管理互動；資料仍由原本的 Python 與 Java 服務提供。</p>
+      <div class="flow">
+        <a href="../frontend-react/src/components/ResearchForm.tsx"><strong>1. 表單</strong><span>受控 textarea、至少 3 字、送出時避免重送</span></a>
+        <a href="../frontend-react/src/App.tsx"><strong>2. 會員狀態</strong><span>先查 session；未登入就暫存問題並提供體驗登入</span></a>
+        <a href="../frontend-react/src/hooks/useResearch.ts"><strong>3. 研究請求</strong><span>hook 管理 loading、success、error</span></a>
+        <a href="../frontend-react/src/components/ResearchResult.tsx"><strong>4. 證據呈現</strong><span>摘要、工具狀態和公開來源分開顯示</span></a>
+      </div>
+      <div class="grid">
+        <div class="card"><h2>系統邊界</h2><p>Browser / React → FastAPI <code>/api/research</code> → Python 規劃查詢 → Java MCP 與新聞 → Gemini 單次整理 → React 結果卡。</p><p class="note">React 不直接呼叫 Gemini、Java MCP 或資料庫，也沒有讀取 JWT 的程式碼。</p></div>
+        <div class="card"><h2>實際端點</h2><p><code>GET /api/session/status</code> 查會員；<code>POST /api/session/demo</code> 建立體驗 session；<code>POST /api/research</code> 送出問題。Vite 在本機將 <code>/api</code> 代理到 FastAPI。</p><p class="file">frontend-react/vite.config.ts · app/api/session.py · app/api/research.py</p></div>
+      </div>
+      <div class="card"><h2>元件地圖</h2><p><span class="tag">App</span> 負責會員狀態及流程協調；<span class="tag">ResearchForm</span> 只處理輸入；<span class="tag">useResearch</span> 處理研究請求狀態；<span class="tag">ResearchResult</span> 只負責展示；<span class="tag">api/research.ts</span> 負責 HTTP。這種拆分讓測試能從使用者行為開始，也能單獨定位 API 與畫面問題。</p></div>
+    </section>
+
+    <section class="tab-panel" data-panel="react" hidden>
+      <div class="grid">
+        <div class="card"><h2>受控表單：useState</h2><p>textarea 的值永遠來自 React state。輸入變更只更新 state，送出再做 trim 和長度檢查。</p><pre>const [question, setQuestion] = useState("");
+const valid = question.trim().length >= 3;
+
+&lt;textarea value={question}
+  onChange={(event) =&gt; setQuestion(event.target.value)} /&gt;</pre><p class="note">這證明表單狀態有單一來源；按鈕是否可按、字數顯示都能由同一個值推導。</p><p class="file">frontend-react/src/components/ResearchForm.tsx</p></div>
+        <div class="card"><h2>初始化與清理：useEffect</h2><p>元件掛載後查一次 session。依賴陣列 <code>[]</code> 表示這段 effect 不依賴可變 props/state；清理時 abort 尚未完成的請求。</p><pre>useEffect(() =&gt; {
+  const controller = new AbortController();
+  getSession(controller.signal).then(setMember);
+  return () =&gt; controller.abort();
+}, []);</pre><p class="note">這是便於講解的節錄；實際程式還處理 error 與 loading。研究表單是使用者事件，因此從 submit handler 發送，沒有靠 effect 監看問題文字。</p><p class="file">frontend-react/src/App.tsx</p></div>
+      </div>
+      <div class="card"><h2>props 與責任</h2><p><code>ResearchForm</code> 接收 <code>busy: boolean</code> 和 <code>onSubmit: (question: string) =&gt; void</code>。它不需要知道 API、會員或 JWT。<code>ResearchResult</code> 接收具型別的 <code>ResearchResponse</code>，只依資料渲染。這是用 props 表達元件契約的例子。</p></div>
+    </section>
+
+    <section class="tab-panel" data-panel="types" hidden>
+      <div class="grid">
+        <div class="card"><h2>狀態的型別聯集</h2><p><code>status</code> 是辨識欄位。只有成功狀態有 <code>result</code>，錯誤狀態才有 <code>message</code>。TypeScript 會在條件分支裡縮小型別。</p><pre>type ResearchState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; result: ResearchResponse }
+  | { status: "error"; message: string; needsLogin: boolean };</pre><p class="note">這證明畫面不必用多個可能互相矛盾的布林值，例如 loading=true 同時 error=true。</p><p class="file">frontend-react/src/hooks/useResearch.ts</p></div>
+        <div class="card"><h2>API 契約與限制</h2><p><code>ResearchResponse</code> 對照 FastAPI 的 Pydantic schema：answer、tool_calls、citations、model、disclaimer。HTTP 非 2xx 轉成有 status 的 <code>ApiError</code>，401 可獨立處理。</p><pre>if (!response.ok) throw await readError(response);
+return response.json() as Promise&lt;ResearchResponse&gt;;</pre><p class="note">TypeScript 型別只在編譯期檢查；這個 <code>as</code> 不是執行期 JSON 驗證。若 API 契約頻繁變動，可加入 Zod 等執行期驗證。</p><p class="file">frontend-react/src/types/research.ts · src/api/research.ts · app/schemas/research.py</p></div>
+      </div>
+      <div class="card"><h2>安全與失敗邊界</h2><p>前端請求同源 <code>/api</code>，瀏覽器自動帶上 HttpOnly session cookie；前端 JavaScript 讀不到 cookie 裡的 JWT。Demo 帳密在伺服器設定，沒有放在 React。401 提示重新登入；502 呈現後端 detail；網路錯誤會進 error 狀態。引用連結只允許 HTTP(S) URL，並使用 <code>noopener noreferrer</code>。</p><p class="file">frontend-react/src/api/research.ts · src/components/ResearchResult.tsx · app/api/session.py</p></div>
+    </section>
+
+    <section class="tab-panel" data-panel="tests" hidden>
+      <div class="grid">
+        <div class="card"><h2>自動驗證</h2><ul class="check"><li>2026-10-03：<strong>Vitest 4 tests passed</strong>。涵蓋登入後續查與結果、loading 防重送、502 錯誤、401 session 失效。</li><li><strong>TypeScript + Vite build passed</strong>。</li><li><strong>ESLint passed</strong>。</li><li><strong>本機 HTTP smoke check</strong>：經 Vite proxy 查 <code>/api/session/status</code>，FastAPI 回傳 <code>200 null</code>（未登入的預期結果）。</li></ul><p class="note">測試 mock 了 fetch，證明前端互動與渲染邏輯；HTTP smoke check 只證明代理與 session 狀態端點可達。這些驗證沒有證明 live Gemini、Java MCP 或部署服務在此刻可用。</p><p class="file">frontend-react/tests/App.test.tsx</p></div>
+        <div class="card"><h2>值得練的提問</h2><ol class="check"><li>為什麼查 session 用 <code>useEffect</code>，研究請求卻從 submit handler 發送？</li><li>為什麼 <code>ResearchState</code> 用 union，沒有用四個 boolean？</li><li>HTTP 401、502 和網路斷線在畫面上如何不同？</li><li>mock fetch 的 component test 能證明什麼，不能證明什麼？</li><li>如果 API 新增欄位或改名，TypeScript 有哪些保護與盲點？</li></ol></div>
+      </div>
+      <div class="card"><h2>60–90 秒面試說法</h2><p class="pitch">「我原本的 FinScope 是 FastAPI 加 Java 股票資料服務，前端使用原生 JavaScript。為了練習產品團隊常用的 React 和 TypeScript，我做了一個可獨立運行的研究頁，沿用同一組會員與研究 API。表單用受控輸入；App 負責會員 session 與未登入時暫存問題；研究請求封裝在 custom hook，用型別聯集明確區分 idle、loading、success、error；結果元件顯示答案、工具查詢軌跡和來源。API 層把 HTTP 錯誤轉成可處理的狀態，瀏覽器只帶 HttpOnly cookie，不碰 JWT。最後我用 Vitest 和 React Testing Library 測登入後續查、載入中防重送、502 與 401，並跑 TypeScript build 和 lint。AI 幫我加速初稿，但元件責任、錯誤情境和測試結果是我自己檢查的。」</p></div>
+    </section>
+    <p class="foot">資料來源：本 repository 的實際程式碼；未量測真實使用者延遲、覆蓋率或正式環境可用率。</p>
+  </main>
+  <footer>FinScope TW · React + TypeScript code walkthrough</footer>
+  <script>
+    const tabs = [...document.querySelectorAll('[data-tab]')];
+    const panels = [...document.querySelectorAll('[data-panel]')];
+    tabs.forEach((tab) => tab.addEventListener('click', () => {
+      tabs.forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+      panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== tab.dataset.tab; });
+    }));
+  </script>
+</body>
+</html>

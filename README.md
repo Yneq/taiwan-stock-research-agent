@@ -106,7 +106,13 @@ app/
 └── tools/          # approved query execution and structured results
 evals/cases.json    # fixed behavioral evaluation set
 tests/              # orchestration, configuration, and HTTP adapter tests
+frontend-react/      # independent React + TypeScript client for interview practice
 ```
+
+The [React + TypeScript client](frontend-react/README.md) exercises the existing
+member and research APIs with a typed form, result components, explicit loading
+and error states, and component tests. It runs locally alongside FastAPI; the
+deployed dashboard remains in `app/static/`.
 
 ## Requirements
 

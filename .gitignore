@@ -1,6 +1,9 @@
 __pycache__/
 *.py[cod]
 .env
+frontend-react/node_modules/
+frontend-react/dist/
+frontend-react/coverage/
 .env.aws
 .venv/
 .pytest_cache/
