@@ -10,9 +10,10 @@ from app.schemas.research import Citation, ToolTrace
 from app.tools.executor import ToolExecution, ToolExecutor
 from app.progress import stage
 
-# Names already used and verified by the application's market ticker.
+# Known company-name aliases for query planning; prices still come from tools.
 STOCK_NAMES = {"台積電": "2330", "聯發科": "2454", "鴻海": "2317",
-               "環球晶": "6488", "台達電": "2308", "緯創": "3231"}
+               "環球晶": "6488", "台達電": "2308", "緯創": "3231",
+               "光洋科": "1785"}
 
 
 SYSTEM_PROMPT = """
@@ -42,6 +43,7 @@ class ResearchOutcome:
     answer: str
     traces: list[ToolTrace]
     citations: list[Citation]
+    model: str | None = None
 
 
 class ResearchOrchestrator:
@@ -64,6 +66,8 @@ class ResearchOrchestrator:
         """Return the engine that actually produced this answer."""
         if self._simple_quote_code(question):
             return "StockTracker · deterministic"
+        if self._simple_news_query(question):
+            return "新聞來源 · deterministic"
         return self.model
 
     async def research(self, question: str) -> ResearchOutcome:
@@ -107,11 +111,26 @@ class ResearchOrchestrator:
 
         traces = [self._to_trace(item) for item in executions]
         citations = self._citations_from_tool_results(executions)
-        turn = await self._gateway.start(
-            user_input=self._synthesis_input(question, executions),
-            system_instruction=SYSTEM_PROMPT,
-            tools=[],
-        )
+        if self._simple_news_query(question):
+            return ResearchOutcome(
+                answer=self._news_answer(executions[0]),
+                traces=traces,
+                citations=self._to_api_citations(citations),
+            )
+
+        try:
+            turn = await self._gateway.start(
+                user_input=self._synthesis_input(question, executions),
+                system_instruction=SYSTEM_PROMPT,
+                tools=[],
+            )
+        except TimeoutError:
+            return ResearchOutcome(
+                answer=self._model_timeout_answer(executions),
+                traces=traces,
+                citations=self._to_api_citations(citations),
+                model="查證資料 · timeout fallback",
+            )
         if turn.function_calls or not turn.output_text.strip():
             raise AgentIncompleteError("模型沒有產生可用的單次整合回答")
         citations.extend(turn.citations)
@@ -241,6 +260,88 @@ class ResearchOrchestrator:
         if any(term in question for term in research_terms):
             return None
         return codes[0]
+
+    @staticmethod
+    def _simple_news_query(question: str) -> bool:
+        """A request for headlines needs sources, not model interpretation."""
+        if not any(term in question for term in ("新聞", "消息")):
+            return False
+        if any(term in question for term in (
+            "為什麼", "原因", "影響", "分析", "比較", "展望", "趨勢",
+            "評估", "預測", "股價", "漲跌", "營收", "完整研究", "買", "賣",
+        )):
+            return False
+        return [name for _, name, _ in ResearchOrchestrator._plan_research(question)] == ["search_news"]
+
+    @staticmethod
+    def _news_answer(execution: ToolExecution) -> str:
+        if execution.status != "success":
+            return (
+                "摘要\n本次未能取得可驗證的新聞搜尋結果。\n\n"
+                "關鍵數據\n- 暫無可列出的新聞標題。\n\n"
+                "可能影響因素\n- 資料不足，無法推論對股價的影響。\n\n"
+                f"資料限制\n- 新聞來源查詢失敗：{execution.error or '暫時無法使用'}。"
+            )
+
+        articles = execution.result.get("articles", [])
+        if not articles:
+            return (
+                "摘要\n本次搜尋未找到符合條件的新聞標題；不代表這段期間沒有新聞。\n\n"
+                "關鍵數據\n- 本次搜尋無符合條件的結果。\n\n"
+                "可能影響因素\n- 沒有足夠資料，無法推論事件對股價的影響。\n\n"
+                "資料限制\n- 僅搜尋公開新聞來源；可調整公司名稱或關鍵字再試。"
+            )
+
+        lines = []
+        for article in articles:
+            title = " ".join((article.get("title") or "未命名報導").split())
+            source = " ".join((article.get("source") or "來源未標示").split())
+            published = (article.get("publishedAt") or "")[:10] or "日期未標示"
+            lines.append(f"- {title}（{source}，{published}）")
+        limitation = "僅取得標題、日期與來源，未讀取新聞全文；不能單憑標題判定真實影響。"
+        if execution.result.get("broadened"):
+            limitation += " 搜尋已放寬，部分結果可能不符合原主題。"
+        return (
+            f"摘要\n本次找到 {len(lines)} 則與搜尋關鍵字相關的公開新聞標題。\n\n"
+            "關鍵數據\n" + "\n".join(lines) + "\n\n"
+            "可能影響因素\n- 本次僅列出新聞，不推論其對股價的因果影響。\n\n"
+            f"資料限制\n- {limitation}"
+        )
+
+    @staticmethod
+    def _model_timeout_answer(executions: list[ToolExecution]) -> str:
+        verified = [item for item in executions if item.status == "success"]
+        lines = []
+        for item in verified:
+            if item.name == "get_stock_snapshot":
+                data = item.result
+                code = data.get("stockCode") or item.arguments.get("stock_code", "")
+                price = data.get("currentPrice")
+                if price is not None:
+                    lines.append(f"- {code} 查證成交價：{price} {data.get('currency', 'TWD')}（{data.get('source', '行情工具')}）")
+            elif item.name == "search_news":
+                for article in item.result.get("articles", []):
+                    if article.get("title"):
+                        lines.append(f"- 新聞標題：{article['title']}")
+            elif item.name == "get_revenue_history":
+                lines.append(f"- {item.arguments.get('stock_code', '')} 月營收資料已查得，請見下方研究軌跡與圖表。")
+        if not lines:
+            lines = ["- 暫無足夠且可核對的資料。"]
+        failures = [item for item in executions if item.status != "success"]
+        failure_text = "".join(f"\n- {item.name}：{item.error or '查詢失敗'}" for item in failures)
+        news_limit = (
+            " 新聞僅取得標題，未讀取全文。"
+            if any(item.name == "search_news" for item in executions)
+            else ""
+        )
+        return (
+            "摘要\nAI 整理逾時，以下僅列出已查證資料，不作完整分析。\n\n"
+            "關鍵數據\n" + "\n".join(lines) + "\n\n"
+            "可能影響因素\n- 未完成分析，不能從這些資料推斷價格變動原因。\n\n"
+            "資料限制\n- 模型未在時限內回應；未完成綜合分析。"
+            + news_limit
+            + failure_text
+        )
 
     @staticmethod
     def _quote_answer(data: dict) -> str:

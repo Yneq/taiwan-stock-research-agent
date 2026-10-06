@@ -43,6 +43,13 @@ class GatewayMustNotRun:
         raise AssertionError("Simple quote must bypass Gemini")
 
 
+class GatewayTimesOut:
+    model = "test-model"
+
+    async def start(self, *args, **kwargs):
+        raise TimeoutError("model call exceeded deadline")
+
+
 class FakeExecutor:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
@@ -151,6 +158,68 @@ async def test_news_question_still_uses_gemini() -> None:
     assert outcome.answer == "近期新聞摘要"
     assert [name for name, _ in executor.calls] == ["get_stock_snapshot", "search_news"]
     assert len(gateway.starts) == 1
+    assert outcome.citations[0].url == "https://example.com/news"
+
+
+@pytest.mark.asyncio
+async def test_news_headlines_bypass_gemini_and_keep_sources() -> None:
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(GatewayMustNotRun(), executor)
+
+    outcome = await orchestrator.research("1785 新聞")
+
+    assert executor.calls == [("search_news", {
+        "query": "光洋科", "days": 7, "max_results": 5, "fallback_query": None,
+    })]
+    assert orchestrator.model_for("1785 新聞") == "新聞來源 · deterministic"
+    assert "台積電近期消息" in outcome.answer
+    assert "未讀取新聞全文" in outcome.answer
+    assert outcome.citations[0].url == "https://example.com/news"
+
+
+@pytest.mark.asyncio
+async def test_news_headlines_failure_does_not_invent_results() -> None:
+    orchestrator = ResearchOrchestrator(GatewayMustNotRun(), FailingExecutor())
+
+    outcome = await orchestrator.research("1785 新聞")
+
+    assert outcome.traces[0].status == "error"
+    assert outcome.citations == []
+    assert "暫無可列出的新聞標題" in outcome.answer
+
+
+@pytest.mark.asyncio
+async def test_news_headlines_zero_results_is_not_claimed_as_no_news() -> None:
+    class EmptyNewsExecutor(FakeExecutor):
+        async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
+            execution = await super().execute(call_id, name, arguments)
+            return ToolExecution(
+                call_id=execution.call_id,
+                name=execution.name,
+                arguments=execution.arguments,
+                result={**execution.result, "articles": []},
+                status=execution.status,
+                duration_ms=execution.duration_ms,
+            )
+
+    outcome = await ResearchOrchestrator(GatewayMustNotRun(), EmptyNewsExecutor()).research("1785 新聞")
+
+    assert "不代表這段期間沒有新聞" in outcome.answer
+    assert outcome.citations == []
+
+
+@pytest.mark.asyncio
+async def test_gemini_timeout_returns_only_verified_evidence() -> None:
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(GatewayTimesOut(), executor)
+
+    outcome = await orchestrator.research("台積電 2330 今天股價為什麼上漲？有哪些新聞？")
+
+    assert outcome.model == "查證資料 · timeout fallback"
+    assert "AI 整理逾時" in outcome.answer
+    assert "1120" in outcome.answer
+    assert "台積電近期消息" in outcome.answer
+    assert "不能從這些資料推斷" in outcome.answer
     assert outcome.citations[0].url == "https://example.com/news"
 
 

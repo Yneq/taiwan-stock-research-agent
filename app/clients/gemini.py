@@ -6,6 +6,8 @@ from app.progress import measured, stage, emit
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+import httpx
+
 
 @dataclass(frozen=True, slots=True)
 class FunctionCall:
@@ -64,11 +66,17 @@ class GeminiInteractionsGateway:
     network credentials or the provider package.
     """
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, timeout_seconds: float = 20.0) -> None:
         from google import genai
+        from google.genai import types
 
-        self._client = genai.Client(api_key=api_key)
+        self._client = genai.Client(
+            api_key=api_key,
+            # End the underlying HTTP request before the outer coroutine deadline.
+            http_options=types.HttpOptions(timeout=round(max(timeout_seconds - 2, 1) * 1000)),
+        )
         self.model = model
+        self._timeout_seconds = timeout_seconds
 
     async def start(
         self,
@@ -105,23 +113,26 @@ class GeminiInteractionsGateway:
         max_attempts = 3
         remaining_wait = 15.0
         last_retry_after = 5.0
-        for attempt in range(max_attempts):
-            try:
-                return await asyncio.to_thread(
-                    self._client.interactions.create,
-                    **kwargs,
-                )
-            except Exception as exc:
-                retry_after = _rate_limit_retry_delay(exc, attempt)
-                if retry_after is None:
-                    raise
-                last_retry_after = retry_after
-                if attempt == max_attempts - 1 or retry_after > remaining_wait:
-                    raise GeminiRateLimitError(round(retry_after)) from exc
-                remaining_wait -= retry_after
-                emit(stage="Gemini 限流", status="retry", wait_seconds=retry_after)
-                async with stage("限流等待"):
-                    await asyncio.sleep(retry_after)
+        async with asyncio.timeout(getattr(self, "_timeout_seconds", 20.0)):
+            for attempt in range(max_attempts):
+                try:
+                    return await asyncio.to_thread(
+                        self._client.interactions.create,
+                        **kwargs,
+                    )
+                except Exception as exc:
+                    if isinstance(exc, httpx.TimeoutException):
+                        raise TimeoutError("Gemini request timed out") from exc
+                    retry_after = _rate_limit_retry_delay(exc, attempt)
+                    if retry_after is None:
+                        raise
+                    last_retry_after = retry_after
+                    if attempt == max_attempts - 1 or retry_after > remaining_wait:
+                        raise GeminiRateLimitError(round(retry_after)) from exc
+                    remaining_wait -= retry_after
+                    emit(stage="Gemini 限流", status="retry", wait_seconds=retry_after)
+                    async with stage("限流等待"):
+                        await asyncio.sleep(retry_after)
 
         raise GeminiRateLimitError(round(last_retry_after))
 

@@ -48,7 +48,8 @@ async def lifespan(app: FastAPI):
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
     )
-    news = NewsSearchClient(timeout_seconds=settings.request_timeout_seconds)
+    # News-only queries should not inherit the long Java cold-start timeout.
+    news = NewsSearchClient(timeout_seconds=min(settings.request_timeout_seconds, 10.0))
     auth_client = StockTrackerAuthClient(
         base_url=settings.stocktracker_base_url,
         timeout_seconds=settings.request_timeout_seconds,

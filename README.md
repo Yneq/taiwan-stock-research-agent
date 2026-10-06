@@ -30,7 +30,7 @@ brief with deterministic charts, tool latency, and public citations.
 ## What it demonstrates
 
 - Deterministic research planning with parallel data retrieval
-- A single Gemini synthesis call after evidence collection
+- One Gemini synthesis call for analysis; quote and headline-only requests bypass it
 - An explicit evolution from a bounded function-calling loop to deterministic orchestration
 - Free, keyless current-news search with structured citations
 - Python MCP Client calling a separate Java/Spring Boot MCP Server
@@ -44,7 +44,7 @@ brief with deterministic charts, tool latency, and public citations.
 Browser
    │ same-origin UI + HttpOnly session cookie
    ▼
-FastAPI research service ── verified JSON ─► Gemini Interactions API (once)
+FastAPI research service ── verified JSON ─► Gemini Interactions API (analysis only)
    │
    ├── member BFF + Bearer JWT ────────────► TaiwanStockTracker auth/watchlist APIs
    ├── parallel current-news search ───────► Google News RSS
@@ -56,8 +56,8 @@ FastAPI research service ── verified JSON ─► Gemini Interactions API (on
 ```
 
 Gemini never receives database credentials or tool access. The Python service
-plans and executes approved read-only queries first, then sends only their JSON
-results to Gemini for one final synthesis call.
+plans and executes approved read-only queries first. It sends their JSON results
+to Gemini only when the question needs synthesis or interpretation.
 
 TaiwanStockTracker remains the source of truth for users, passwords, JWTs, and
 watchlists. The browser never stores or reads the JWT: FastAPI keeps it in a
@@ -75,11 +75,13 @@ tools disabled.
    - `get_revenue_history`
    - `search_news`
 3. FastAPI runs independent news and Java MCP queries in parallel.
-4. Their verified JSON results go to Gemini in one synthesis request with no tools enabled.
-5. Gemini produces a Traditional Chinese brief with explicit limitations.
+4. Pure quote and headline-list requests return directly from verified tool data.
+5. Other questions send verified JSON to Gemini once, with tools disabled and a
+   20-second deadline. On model timeout, the response shows only verified facts
+   and explicitly states that analysis did not complete.
 6. The UI displays the answer, tool trace, citations, and per-stage latency.
 
-Pure quote requests bypass Gemini entirely. Full research uses one Gemini call;
+Pure quote and headline-list requests bypass Gemini entirely. Full research uses one Gemini call;
 invalid responses, timeouts, unknown stock codes, and upstream failures fail
 closed instead of inventing data.
 
@@ -89,7 +91,7 @@ The first MVP used Gemini function calling in a loop capped at three rounds.
 That design was replaced because repeated model turns increased latency, cost,
 and tool-selection variance. The current version uses deterministic intent
 rules, runs independent retrievals concurrently, and sends their structured
-results to Gemini once for final wording. `MAX_AGENT_STEPS` remains only as a
+results to Gemini once for final wording when needed. `MAX_AGENT_STEPS` remains only as a
 backward-compatible configuration field; it no longer controls a model/tool
 loop.
 
@@ -182,7 +184,7 @@ The response includes:
 - the final research answer;
 - every custom tool trace;
 - structured source URLs returned by the news search tool;
-- the active model ID and financial-information disclaimer.
+- the answer engine label and financial-information disclaimer.
 
 ### Member BFF endpoints
 

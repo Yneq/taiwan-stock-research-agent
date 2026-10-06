@@ -484,7 +484,7 @@ function setLoading(active) {
       timing = document.createElement("details");
       timing.id = "research-timing";
       timing.open = true;
-      timing.innerHTML = '<summary>研究階段與耗時</summary><p>由服務實際回報。行情、營收與新聞會先平行查詢，再由 Gemini 進行一次最終整理；平行耗時不可直接相加。</p><ol id="research-timing-list"></ol>';
+      timing.innerHTML = '<summary>研究階段與耗時</summary><p>由服務實際回報。純行情或新聞清單可直接回覆；需要綜合分析時，資料先平行查詢，再由 Gemini 整理。平行耗時不可直接相加。</p><ol id="research-timing-list"></ol>';
       loadingPanel.after(timing);
     }
     document.querySelector("#research-timing-list").replaceChildren();

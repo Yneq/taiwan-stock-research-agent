@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 import app.clients.gemini as gemini_module
@@ -96,3 +98,28 @@ async def test_does_not_retry_unrelated_provider_error(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="invalid API key"):
         await gateway.start("問題", "規則", [])
+
+
+@pytest.mark.asyncio
+async def test_model_call_has_a_short_deadline(monkeypatch) -> None:
+    gateway = build_gateway(FakeInteractions(failures=0))
+    gateway._timeout_seconds = 0.01
+
+    async def slow_to_thread(*args, **kwargs):
+        await asyncio.sleep(0.1)
+
+    monkeypatch.setattr(gemini_module.asyncio, "to_thread", slow_to_thread)
+
+    with pytest.raises(TimeoutError):
+        await gateway.start("問題", "規則", [])
+
+
+@pytest.mark.asyncio
+async def test_sdk_http_timeout_becomes_model_timeout() -> None:
+    interactions = FakeInteractions(failures=0)
+    def timeout(**kwargs):
+        raise httpx.ReadTimeout("provider stalled")
+    interactions.create = timeout
+
+    with pytest.raises(TimeoutError, match="Gemini request timed out"):
+        await build_gateway(interactions).start("問題", "規則", [])
