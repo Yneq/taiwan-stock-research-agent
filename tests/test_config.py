@@ -18,10 +18,12 @@ def test_loads_bounded_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", "x" * 32)
     monkeypatch.setenv("MAX_AGENT_STEPS", "4")
     monkeypatch.delenv("REQUEST_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("GEMINI_FALLBACK_MODEL", raising=False)
 
     settings = Settings.from_environment()
 
     assert settings.gemini_model == "gemini-3.6-flash"
+    assert settings.gemini_fallback_model == "gemini-3.5-flash-lite"
     assert settings.max_agent_steps == 4
     assert settings.stocktracker_base_url == "http://localhost:8080"
     assert settings.request_timeout_seconds == 150

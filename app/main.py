@@ -15,8 +15,9 @@ from app.api.research import router as research_router
 from app.api.session import router as session_router
 from app.auth.session import SessionManager
 from app.clients.auth import StockTrackerAuthClient
-from app.clients.gemini import GeminiInteractionsGateway
+from app.clients.gemini import GeminiSynthesisGateway
 from app.clients.news import NewsSearchClient
+from app.clients.market import MarketRankingClient
 from app.clients.stocktracker import StockTrackerClient
 from app.config import get_settings
 from app.middleware.rate_limit import ResearchRateLimitMiddleware
@@ -44,19 +45,21 @@ async def lifespan(app: FastAPI):
         api_key=settings.stocktracker_api_key,
         timeout_seconds=settings.request_timeout_seconds,
     )
-    gateway = GeminiInteractionsGateway(
+    gateway = GeminiSynthesisGateway(
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
+        fallback_model=settings.gemini_fallback_model,
     )
     # News-only queries should not inherit the long Java cold-start timeout.
     news = NewsSearchClient(timeout_seconds=min(settings.request_timeout_seconds, 10.0))
+    market = MarketRankingClient(timeout_seconds=min(settings.request_timeout_seconds, 10.0))
     auth_client = StockTrackerAuthClient(
         base_url=settings.stocktracker_base_url,
         timeout_seconds=settings.request_timeout_seconds,
     )
     app.state.orchestrator = ResearchOrchestrator(
         gateway=gateway,
-        executor=ToolExecutor(stocktracker, news),
+        executor=ToolExecutor(stocktracker, news, market),
         max_steps=settings.max_agent_steps,
     )
     app.state.stocktracker = stocktracker
@@ -84,6 +87,8 @@ async def lifespan(app: FastAPI):
     await stocktracker.close()
     await auth_client.close()
     await news.close()
+    await market.close()
+    await gateway.close()
 
 
 app = FastAPI(

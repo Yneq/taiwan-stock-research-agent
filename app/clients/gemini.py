@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import asyncio
 import re
-from app.progress import measured, stage, emit
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import httpx
+
+from app.progress import emit, measured, stage
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +31,7 @@ class ModelTurn:
     function_calls: list[FunctionCall]
     citations: list[SourceCitation]
     search_queries: list[str]
+    model: str | None = None
 
 
 class GeminiGateway(Protocol):
@@ -42,169 +44,135 @@ class GeminiGateway(Protocol):
         tools: list[dict[str, Any]],
     ) -> ModelTurn: ...
 
-    async def continue_with_results(
-        self,
-        previous_interaction_id: str,
-        results: list[dict[str, Any]],
-        system_instruction: str,
-        tools: list[dict[str, Any]],
-    ) -> ModelTurn: ...
-
 
 class GeminiRateLimitError(RuntimeError):
-    """Raised after bounded retries cannot clear a provider rate limit."""
-
     def __init__(self, retry_after_seconds: int) -> None:
-        super().__init__("AI 免費額度暫時繁忙，請稍後再試。")
+        super().__init__("AI 模型免費額度已用完，備用模型也暫時無法使用。")
         self.retry_after_seconds = retry_after_seconds
 
 
-class GeminiInteractionsGateway:
-    """Thin adapter around Gemini's Interactions API.
+class GeminiServiceError(RuntimeError):
+    """Provider failure without exposing response bodies or credentials."""
 
-    The SDK is imported lazily so the rest of the agent remains testable without
-    network credentials or the provider package.
+
+class GeminiSynthesisGateway:
+    """Single-pass Gemini synthesis with an immediate lower-cost model fallback.
+
+    The old Interactions SDK hid quota errors behind long retries. No model
+    tools are enabled now, so the supported generateContent HTTP endpoint gives
+    us explicit 429 handling and a real per-request deadline.
     """
 
-    def __init__(self, api_key: str, model: str, timeout_seconds: float = 20.0) -> None:
-        from google import genai
-        from google.genai import types
-
-        self._client = genai.Client(
-            api_key=api_key,
-            # End the underlying HTTP request before the outer coroutine deadline.
-            http_options=types.HttpOptions(timeout=round(max(timeout_seconds - 2, 1) * 1000)),
-        )
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        fallback_model: str = "gemini-3.5-flash-lite",
+        timeout_seconds: float = 12.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
         self.model = model
-        self._timeout_seconds = timeout_seconds
+        self.fallback_model = fallback_model
+        self._primary_unavailable_until = 0.0
+        self._owns_client = client is None
+        self._client = client or httpx.AsyncClient(
+            base_url="https://generativelanguage.googleapis.com",
+            timeout=httpx.Timeout(timeout_seconds),
+            headers={"x-goog-api-key": api_key},
+        )
 
+    async def close(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
+
+    @measured("Gemini 單次整合（含備用模型）")
     async def start(
         self,
         user_input: str,
         system_instruction: str,
         tools: list[dict[str, Any]],
     ) -> ModelTurn:
-        interaction = await self._create_with_retry(
-            model=self.model,
-            input=user_input,
-            system_instruction=system_instruction,
-            tools=tools,
-        )
-        return self._to_turn(interaction)
+        if tools:
+            raise ValueError("Synthesis must not expose tools to Gemini")
 
-    async def continue_with_results(
-        self,
-        previous_interaction_id: str,
-        results: list[dict[str, Any]],
-        system_instruction: str,
-        tools: list[dict[str, Any]],
-    ) -> ModelTurn:
-        interaction = await self._create_with_retry(
-            model=self.model,
-            previous_interaction_id=previous_interaction_id,
-            input=results,
-            system_instruction=system_instruction,
-            tools=tools,
-        )
-        return self._to_turn(interaction)
+        if self.fallback_model != self.model and time.monotonic() < self._primary_unavailable_until:
+            emit(stage="Gemini 備用模型", status="retry", reason="primary_quota_cooldown")
+            return await self._generate(self.fallback_model, user_input, system_instruction)
 
-    @measured("Gemini 單次整合（含重試）")
-    async def _create_with_retry(self, **kwargs: Any) -> Any:
-        max_attempts = 3
-        remaining_wait = 15.0
-        last_retry_after = 5.0
-        async with asyncio.timeout(getattr(self, "_timeout_seconds", 20.0)):
-            for attempt in range(max_attempts):
-                try:
-                    return await asyncio.to_thread(
-                        self._client.interactions.create,
-                        **kwargs,
-                    )
-                except Exception as exc:
-                    if isinstance(exc, httpx.TimeoutException):
-                        raise TimeoutError("Gemini request timed out") from exc
-                    retry_after = _rate_limit_retry_delay(exc, attempt)
-                    if retry_after is None:
-                        raise
-                    last_retry_after = retry_after
-                    if attempt == max_attempts - 1 or retry_after > remaining_wait:
-                        raise GeminiRateLimitError(round(retry_after)) from exc
-                    remaining_wait -= retry_after
-                    emit(stage="Gemini 限流", status="retry", wait_seconds=retry_after)
-                    async with stage("限流等待"):
-                        await asyncio.sleep(retry_after)
-
-        raise GeminiRateLimitError(round(last_retry_after))
-
-    def _to_turn(self, interaction: Any) -> ModelTurn:
-        calls = [
-            FunctionCall(
-                id=step.id,
-                name=step.name,
-                arguments=dict(step.arguments or {}),
-            )
-            for step in interaction.steps
-            if step.type == "function_call"
-        ]
-        citations: list[SourceCitation] = []
-        search_queries: list[str] = []
-        for step in interaction.steps:
-            if step.type == "google_search_call":
-                arguments = getattr(step, "arguments", None) or {}
-                queries = (
-                    arguments.get("queries", [])
-                    if isinstance(arguments, dict)
-                    else getattr(arguments, "queries", [])
+        try:
+            return await self._generate(self.model, user_input, system_instruction)
+        except (GeminiRateLimitError, GeminiServiceError, TimeoutError) as exc:
+            if isinstance(exc, GeminiRateLimitError):
+                self._primary_unavailable_until = time.monotonic() + exc.retry_after_seconds
+            if self.fallback_model == self.model:
+                raise
+            emit(stage="Gemini 備用模型", status="retry", reason=type(exc).__name__)
+            async with stage("Gemini 備用模型"):
+                return await self._generate(
+                    self.fallback_model, user_input, system_instruction
                 )
-                search_queries.extend(str(query) for query in queries)
-            if step.type != "model_output":
-                continue
-            for block in getattr(step, "content", None) or []:
-                block_text = getattr(block, "text", "") or ""
-                for annotation in getattr(block, "annotations", None) or []:
-                    if getattr(annotation, "type", None) != "url_citation":
-                        continue
-                    start = getattr(annotation, "start_index", None)
-                    end = getattr(annotation, "end_index", None)
-                    cited_text = None
-                    if isinstance(start, int) and isinstance(end, int):
-                        cited_text = block_text[start:end] or None
-                    citations.append(
-                        SourceCitation(
-                            title=getattr(annotation, "title", None) or "來源",
-                            url=getattr(annotation, "url", ""),
-                            cited_text=cited_text,
-                        )
-                    )
+
+    async def _generate(
+        self, model: str, user_input: str, system_instruction: str
+    ) -> ModelTurn:
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "contents": [{"role": "user", "parts": [{"text": user_input}]}],
+            "generationConfig": {
+                "thinkingConfig": {"thinkingLevel": "low"},
+                "maxOutputTokens": 1200,
+            },
+        }
+        try:
+            response = await self._client.post(
+                f"/v1beta/models/{model}:generateContent", json=payload
+            )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("Gemini request timed out") from exc
+        except httpx.RequestError as exc:
+            raise GeminiServiceError("Gemini 連線失敗") from exc
+
+        if response.status_code == 429:
+            raise GeminiRateLimitError(_retry_after_seconds(response))
+        if response.status_code >= 500:
+            raise GeminiServiceError("Gemini 服務暫時無法使用")
+        if not response.is_success:
+            raise GeminiServiceError(f"Gemini 設定或請求錯誤（HTTP {response.status_code}）")
+
+        try:
+            data = response.json()
+            candidate = data["candidates"][0]
+            parts = candidate["content"]["parts"]
+            output = "".join(
+                part.get("text", "") for part in parts if not part.get("thought")
+            ).strip()
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise GeminiServiceError("Gemini 回應格式不正確") from exc
+        if not output:
+            raise GeminiServiceError("Gemini 未產生可用回答")
+
         return ModelTurn(
-            id=interaction.id,
-            output_text=interaction.output_text or "",
-            function_calls=calls,
-            citations=_deduplicate_citations(citations),
-            search_queries=list(dict.fromkeys(search_queries)),
+            id=str(data.get("responseId", "")),
+            output_text=output,
+            function_calls=[],
+            citations=[],
+            search_queries=[],
+            model=model,
         )
 
 
-def _deduplicate_citations(citations: list[SourceCitation]) -> list[SourceCitation]:
-    unique: dict[str, SourceCitation] = {}
-    for citation in citations:
-        if citation.url:
-            unique.setdefault(citation.url, citation)
-    return list(unique.values())
-
-
-def _rate_limit_retry_delay(exc: Exception, attempt: int) -> float | None:
-    message = str(exc)
-    normalized = message.lower()
-    rate_limited = any(
-        marker in normalized
-        for marker in ("429", "quota exceeded", "rate limit", "too_many_requests")
-    )
-    if not rate_limited:
-        return None
-
-    match = re.search(r"retry in\s+([0-9]+(?:\.[0-9]+)?)s", message, re.IGNORECASE)
+def _retry_after_seconds(response: httpx.Response) -> int:
+    header = response.headers.get("Retry-After", "")
+    if header.isdigit():
+        return min(int(header), 24 * 60 * 60)
+    try:
+        message = str(response.json().get("error", {}).get("message", ""))
+    except (ValueError, AttributeError):
+        return 60
+    match = re.search(r"Please retry in\s+(?:(\d+)h)?(?:(\d+)m)?([\d.]+)s", message)
     if match:
-        # A small buffer avoids retrying in the same rolling quota window.
-        return min(max(float(match.group(1)) + 0.75, 1.0), 45.0)
-    return min(5.0 * (2**attempt), 30.0)
+        return min(
+            round(int(match.group(1) or 0) * 3600 + int(match.group(2) or 0) * 60 + float(match.group(3))),
+            24 * 60 * 60,
+        )
+    return 60

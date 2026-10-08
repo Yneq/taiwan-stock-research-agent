@@ -56,7 +56,15 @@ class FakeExecutor:
 
     async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
         self.calls.append((name, arguments))
-        if name == "search_news":
+        if name == "get_top_volume":
+            result = {
+                "tradingDate": "2026-10-05",
+                "stocks": [{"rank": 1, "stockCode": "2409", "stockName": "友達",
+                            "tradeVolumeShares": 1000000, "tradingDate": "2026-10-05"}],
+                "sourceUrl": "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX20",
+                "limitation": "僅涵蓋上市個股",
+            }
+        elif name == "search_news":
             result = {
                 "query": arguments["query"],
                 "articles": [
@@ -221,6 +229,63 @@ async def test_gemini_timeout_returns_only_verified_evidence() -> None:
     assert "台積電近期消息" in outcome.answer
     assert "不能從這些資料推斷" in outcome.answer
     assert outcome.citations[0].url == "https://example.com/news"
+
+
+@pytest.mark.asyncio
+async def test_top_volume_discovers_candidate_before_quote_and_news() -> None:
+    question = (
+        "根據今天或最近一個交易日的公開新聞，找出成交量最受關注的台股，"
+        "並用即時行情工具核對它目前的股價與漲跌幅。"
+    )
+    gateway = FakeGateway([turn("one", text="友達為最近交易日上市個股成交量最高；新聞無法證明原因。")])
+    executor = FakeExecutor()
+    orchestrator = ResearchOrchestrator(gateway, executor)
+
+    outcome = await orchestrator.research(question)
+
+    assert [name for name, _ in executor.calls] == [
+        "get_top_volume", "get_stock_snapshot", "search_news"
+    ]
+    assert executor.calls[1][1] == {"stock_code": "2409"}
+    assert executor.calls[2][1]["query"] == "友達 成交量"
+    assert '"get_top_volume"' in gateway.starts[0][0]
+    assert '"get_stock_snapshot"' in gateway.starts[0][0]
+    assert outcome.citations[0].url == "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX20"
+
+
+@pytest.mark.asyncio
+async def test_top_volume_failure_does_not_guess_candidate() -> None:
+    class RankingFails(FakeExecutor):
+        async def execute(self, call_id: str, name: str, arguments: dict) -> ToolExecution:
+            if name == "get_top_volume":
+                self.calls.append((name, arguments))
+                return ToolExecution(call_id, name, arguments, {"error": "TWSE unavailable"},
+                                     "error", 10, "TWSE unavailable")
+            raise AssertionError("No candidate means no follow-up lookup")
+
+    executor = RankingFails()
+    outcome = await ResearchOrchestrator(GatewayMustNotRun(), executor).research(
+        "今天成交量最大的股票是誰？"
+    )
+
+    assert executor.calls == [("get_top_volume", {})]
+    assert "TWSE unavailable" in outcome.answer
+    assert outcome.model == "市場資料 · deterministic"
+
+
+@pytest.mark.asyncio
+async def test_reports_the_actual_backup_model_used() -> None:
+    gateway = FakeGateway([ModelTurn(
+        id="backup", output_text="已用備用模型整理",
+        function_calls=[], citations=[], search_queries=[],
+        model="gemini-3.5-flash-lite",
+    )])
+
+    outcome = await ResearchOrchestrator(gateway, FakeExecutor()).research(
+        "台積電 2330 今天股價為什麼上漲？"
+    )
+
+    assert outcome.model == "gemini-3.5-flash-lite"
 
 
 @pytest.mark.asyncio

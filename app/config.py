@@ -18,6 +18,7 @@ class ConfigurationError(RuntimeError):
 class Settings:
     gemini_api_key: str
     gemini_model: str
+    gemini_fallback_model: str
     stocktracker_base_url: str
     stocktracker_api_key: str
     jwt_secret: str
@@ -48,6 +49,9 @@ class Settings:
         return cls(
             gemini_api_key=gemini_api_key,
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip(),
+            gemini_fallback_model=os.getenv(
+                "GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite"
+            ).strip(),
             stocktracker_base_url=os.getenv(
                 "STOCKTRACKER_BASE_URL", "http://localhost:8080"
             ).rstrip("/"),

@@ -825,6 +825,7 @@ function humanToolName(name) {
   return {
     get_stock_snapshot: "即時行情核對",
     get_revenue_history: "月營收查詢",
+    get_top_volume: "證交所成交量排行",
     google_search: "公開新聞搜尋",
     search_news: "即時新聞搜尋",
   }[name] || name;
@@ -832,6 +833,12 @@ function humanToolName(name) {
 
 function traceDetail(item) {
   if (item.error) return item.error;
+  if (item.tool === "get_top_volume") {
+    const top = item.data?.stocks?.[0];
+    return top
+      ? `${item.data.tradingDate} · ${top.stockCode} ${top.stockName} · ${item.duration_ms} ms`
+      : `${item.duration_ms} ms`;
+  }
   if (item.tool === "google_search" || item.tool === "search_news") {
     return item.arguments.query || (item.arguments.queries || []).join(" · ");
   }

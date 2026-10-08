@@ -30,7 +30,8 @@ brief with deterministic charts, tool latency, and public citations.
 ## What it demonstrates
 
 - Deterministic research planning with parallel data retrieval
-- One Gemini synthesis call for analysis; quote and headline-only requests bypass it
+- One synthesis step for analysis, with immediate Flash-Lite fallback on model quota errors
+- Official TWSE latest-close volume ranking followed by Java quote verification
 - An explicit evolution from a bounded function-calling loop to deterministic orchestration
 - Free, keyless current-news search with structured citations
 - Python MCP Client calling a separate Java/Spring Boot MCP Server
@@ -44,10 +45,12 @@ brief with deterministic charts, tool latency, and public citations.
 Browser
    │ same-origin UI + HttpOnly session cookie
    ▼
-FastAPI research service ── verified JSON ─► Gemini Interactions API (analysis only)
+FastAPI research service ── verified JSON ─► Gemini generateContent API (analysis only)
+   │                                      └─ 3.6 Flash → 3.5 Flash-Lite if needed
    │
    ├── member BFF + Bearer JWT ────────────► TaiwanStockTracker auth/watchlist APIs
    ├── parallel current-news search ───────► Google News RSS
+   ├── latest-close volume ranking ────────► TWSE OpenAPI
    │
    └── parallel MCP + X-Agent-Key ─────────► TaiwanStockTracker (Spring Boot)
                                       ├─ TWSE MIS
@@ -74,16 +77,21 @@ tools disabled.
    - `get_stock_snapshot`
    - `get_revenue_history`
    - `search_news`
-3. FastAPI runs independent news and Java MCP queries in parallel.
+   - `get_top_volume` (TWSE OpenAPI; listed common stocks only)
+3. FastAPI runs independent queries in parallel. A market-wide volume question
+   first gets the official ranking, then checks its top stock through Java MCP
+   and searches news about that stock.
 4. Pure quote and headline-list requests return directly from verified tool data.
-5. Other questions send verified JSON to Gemini once, with tools disabled and a
-   20-second deadline. On model timeout, the response shows only verified facts
-   and explicitly states that analysis did not complete.
+5. Other questions send verified JSON for one synthesis step, with tools disabled.
+   A primary-model 429 immediately switches to Flash-Lite; each HTTP call has a
+   12-second deadline. If both fail, the service reports the real error rather
+   than presenting a fabricated answer.
 6. The UI displays the answer, tool trace, citations, and per-stage latency.
 
-Pure quote and headline-list requests bypass Gemini entirely. Full research uses one Gemini call;
-invalid responses, timeouts, unknown stock codes, and upstream failures fail
-closed instead of inventing data.
+Pure quote and headline-list requests bypass Gemini entirely. Full research
+normally calls one model; quota fallback can make a second request. Invalid
+responses, timeouts, unknown stock codes, and upstream failures fail closed
+instead of inventing data.
 
 ### Design evolution
 
@@ -91,7 +99,7 @@ The first MVP used Gemini function calling in a loop capped at three rounds.
 That design was replaced because repeated model turns increased latency, cost,
 and tool-selection variance. The current version uses deterministic intent
 rules, runs independent retrievals concurrently, and sends their structured
-results to Gemini once for final wording when needed. `MAX_AGENT_STEPS` remains only as a
+results to Gemini for final wording when needed. `MAX_AGENT_STEPS` remains only as a
 backward-compatible configuration field; it no longer controls a model/tool
 loop.
 
@@ -137,6 +145,7 @@ local environment manager:
 ```text
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-3.6-flash
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 STOCKTRACKER_BASE_URL=http://localhost:8080
 STOCKTRACKER_API_KEY=...
 JWT_SECRET=the-same-secret-used-by-the-java-service

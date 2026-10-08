@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.agent.orchestrator import AgentIncompleteError, ResearchOrchestrator
 from app.auth.session import MemberSession, require_session
-from app.clients.gemini import GeminiRateLimitError
+from app.clients.gemini import GeminiRateLimitError, GeminiServiceError
 from app.schemas.research import ResearchRequest, ResearchResponse
 
 
@@ -43,7 +43,9 @@ async def research(
                     report({"stage": "研究總耗時", "status": "completed", "duration_ms": round((time.perf_counter()-started)*1000)})
                     queue.put_nowait({"type": "result", "data": response.model_dump()})
                 except GeminiRateLimitError:
-                    queue.put_nowait({"type": "error", "detail": "AI 額度繁忙，自動重試仍未成功，請稍後再試。"})
+                    queue.put_nowait({"type": "error", "detail": "主要與備用 AI 模型額度皆已用完，請稍後再試。行情與新聞資料工具仍可使用。"})
+                except GeminiServiceError as exc:
+                    queue.put_nowait({"type": "error", "detail": str(exc)})
                 except TimeoutError:
                     queue.put_nowait({"type": "error", "detail": "研究已超過 180 秒，請參考階段耗時後重試。"})
                 except AgentIncompleteError as exc:
@@ -75,9 +77,11 @@ async def research(
     except GeminiRateLimitError as exc:
         raise HTTPException(
             status_code=429,
-            detail="AI 免費額度正在冷卻，系統已自動重試；請稍後再送出。",
+            detail="主要與備用 AI 模型額度皆已用完，請稍後再試。",
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
+    except GeminiServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except AgentIncompleteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:

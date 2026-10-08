@@ -82,7 +82,8 @@ MCP tool 回傳的是有結構的 `StockSnapshotToolResult` 與 `RevenueHistoryT
 | `app/tools/executor.py` | 執行工具、統一成功/失敗格式並記錄耗時 |
 | `app/clients/stocktracker.py` | 可重用的 MCP session、Java readiness、API key、結果解碼與錯誤正規化 |
 | `app/clients/news.py` | 搜尋 Google News RSS，解析標題、時間與來源連結 |
-| `app/clients/gemini.py` | 將已查證資料送入 Gemini，處理單次彙整與有限重試 |
+| `app/clients/market.py` | 讀取證交所最近交易日成交量排行，排除 ETF 後提供上市個股候選 |
+| `app/clients/gemini.py` | 將已查證資料送入 Gemini；主要模型額度不足時立即改用 Flash-Lite，避免 SDK 隱藏的長時間重試 |
 | `app/clients/auth.py` | 呼叫 Java 註冊、登入與會員 API |
 | `app/auth/session.py` | 驗證 Java HS256 JWT，轉成安全的同源 HttpOnly cookie session |
 | `app/api/session.py` | 登入、登出、demo account 與會員資料端點 |
@@ -95,9 +96,9 @@ MCP tool 回傳的是有結構的 `StockSnapshotToolResult` 與 `RevenueHistoryT
 目前版本的核心不是「把問題直接丟給 Gemini」：
 
 - FastAPI 依股票代號與問題意圖規劃允許的唯讀查詢。
-- 行情、營收與新聞可平行取得，API key 與資料庫密碼都不會交給模型。
+- 行情、營收與新聞可平行取得；成交量排行問題先查官方排行，再查候選股行情與新聞。API key 與資料庫密碼都不會交給模型。
 - Gemini 只收到已查證 JSON，且呼叫時不提供 tools。
-- 完整研究最多一次 Gemini call；純行情完全略過 Gemini。
+- 完整研究只有一次最終彙整；主要模型若回 429，可能額外呼叫一次備用模型。純行情與純新聞清單略過 Gemini。
 - 即時股價必須來自 snapshot tool；近期事件必須有 news source。
 - 失敗會保留 tool trace 並明示資料限制，不用模型既有知識補即時數字。
 
@@ -142,7 +143,7 @@ sequenceDiagram
 目前測試結果：
 
 - Java：23 tests，0 failures，0 errors。
-- Python：49 tests，全部通過。
+- Python：62 tests，全部通過。
 
 這次新增的高價值案例：
 

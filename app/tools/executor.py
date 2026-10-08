@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.clients.news import NewsSearchClient, NewsSearchError
+from app.clients.market import MarketRankingClient, MarketRankingError
 from app.clients.stocktracker import StockTrackerClient, StockTrackerError
 
 
@@ -34,9 +35,11 @@ class ToolExecutor:
         self,
         stocktracker: StockTrackerClient,
         news: NewsSearchClient,
+        market: MarketRankingClient | None = None,
     ) -> None:
         self._stocktracker = stocktracker
         self._news = news
+        self._market = market
 
     async def execute(
         self, call_id: str, name: str, arguments: dict[str, Any]
@@ -56,6 +59,10 @@ class ToolExecutor:
                     max_results=int(arguments.get("max_results", 5)),
                     fallback_query=arguments.get("fallback_query"),
                 )
+            elif name == "get_top_volume":
+                if self._market is None:
+                    raise MarketRankingError("證交所成交量排行工具未啟用")
+                result = await self._market.get_top_volume()
             else:
                 raise ValueError(f"Unsupported tool: {name}")
             return ToolExecution(
@@ -71,6 +78,7 @@ class ToolExecutor:
             TypeError,
             ValueError,
             NewsSearchError,
+            MarketRankingError,
             StockTrackerError,
         ) as exc:
             error = str(exc)

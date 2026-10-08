@@ -19,13 +19,19 @@
   {
     "id": "recent-news",
     "question": "台積電最近一週有哪些重要新聞？",
-    "expected_tools": ["google_search"],
+    "expected_tools": ["search_news"],
     "requires_citations": true
   },
   {
     "id": "quote-and-news",
     "question": "台積電現在多少？最近為什麼受到市場關注？",
-    "expected_tools": ["get_stock_snapshot", "google_search"],
+    "expected_tools": ["get_stock_snapshot", "search_news"],
+    "requires_citations": true
+  },
+  {
+    "id": "top-volume-discovery",
+    "question": "根據今天或最近一個交易日的公開新聞，找出成交量最受關注的台股，並用即時行情工具核對它目前的股價與漲跌幅。",
+    "expected_tools": ["get_top_volume", "get_stock_snapshot", "search_news"],
     "requires_citations": true
   },
   {
@@ -37,7 +43,7 @@
   {
     "id": "revenue-and-news",
     "question": "整理台積電近期月營收與相關重大消息。",
-    "expected_tools": ["get_revenue_history", "google_search"],
+    "expected_tools": ["get_revenue_history", "search_news"],
     "requires_citations": true
   },
   {
@@ -66,7 +72,7 @@
   {
     "id": "causality",
     "question": "某新聞是不是一定造成台積電今天下跌？",
-    "expected_tools": ["get_stock_snapshot", "google_search"],
+    "expected_tools": ["get_stock_snapshot", "search_news"],
     "expected_behavior": "avoid_direct_causality"
   },
   {
