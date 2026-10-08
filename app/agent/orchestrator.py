@@ -248,12 +248,26 @@ class ResearchOrchestrator:
 
     @staticmethod
     def _synthesis_input(question: str, executions: list[ToolExecution]) -> str:
+        def compact_data(item: ToolExecution):
+            if item.status != "success":
+                return None
+            if item.name != "search_news":
+                return item.result
+            # Citation URLs stay in the response; opaque RSS URLs add tokens,
+            # but provide no evidence useful to synthesis.
+            data = dict(item.result)
+            data["articles"] = [
+                {key: value for key, value in article.items() if key != "url"}
+                for article in data.get("articles", [])
+            ]
+            return data
+
         verified = [
             {
                 "tool": item.name,
                 "arguments": item.arguments,
                 "status": item.status,
-                "data": item.result if item.status == "success" else None,
+                "data": compact_data(item),
                 "error": item.error,
             }
             for item in executions

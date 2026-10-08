@@ -74,6 +74,7 @@ class GeminiSynthesisGateway:
         self.model = model
         self.fallback_model = fallback_model
         self._primary_unavailable_until = 0.0
+        self._fallback_timeout_seconds = 30.0
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             base_url="https://generativelanguage.googleapis.com",
@@ -104,6 +105,8 @@ class GeminiSynthesisGateway:
         except (GeminiRateLimitError, GeminiServiceError, TimeoutError) as exc:
             if isinstance(exc, GeminiRateLimitError):
                 self._primary_unavailable_until = time.monotonic() + exc.retry_after_seconds
+            elif isinstance(exc, TimeoutError):
+                self._primary_unavailable_until = time.monotonic() + 60
             if self.fallback_model == self.model:
                 raise
             emit(stage="Gemini 備用模型", status="retry", reason=type(exc).__name__)
@@ -125,7 +128,9 @@ class GeminiSynthesisGateway:
         }
         try:
             response = await self._client.post(
-                f"/v1beta/models/{model}:generateContent", json=payload
+                f"/v1beta/models/{model}:generateContent", json=payload,
+                **({"timeout": self._fallback_timeout_seconds}
+                   if model == self.fallback_model and model != self.model else {}),
             )
         except httpx.TimeoutException as exc:
             raise TimeoutError("Gemini request timed out") from exc
